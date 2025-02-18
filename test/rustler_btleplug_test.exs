@@ -62,9 +62,13 @@ defmodule RustlerBtleplugTest do
 
     IO.puts("test")
 
+    Process.sleep(2000)
+
     messages = :erlang.process_info(self(), :messages)
     IO.inspect(messages, label: "messages")
 
-    assert_receive :candidate_error
+    assert_receive {:btleplug_got_central, _}
+     #no_adapters_found,
+    assert_receive {:btleplug_device_discovered, _}
   end
 end

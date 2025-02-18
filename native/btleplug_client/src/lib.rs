@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 #![allow(dead_code)]
+//#![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
 
 extern crate btleplug;
 mod atoms;
@@ -7,29 +8,27 @@ mod task;
 mod utils;
 
 use btleplug::api::{
-    bleuuid::BleUuid, Central, CentralEvent, Manager as _, Peripheral, ScanFilter,
+    bleuuid::BleUuid, Central, CentralEvent, CharPropFlags, Manager as _, Peripheral, ScanFilter,
     ValueNotification,
-    CharPropFlags
 };
 use btleplug::platform::{Adapter, Manager};
 
 use futures::stream::StreamExt;
 
+use btleplug::api::Characteristic;
+use once_cell::sync::Lazy;
 use rustler::env::OwnedEnv;
 use rustler::types::LocalPid;
 use rustler::{Atom, Encoder, Env, Term};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use btleplug::api::Characteristic;
-use uuid::Uuid;
-use once_cell::sync::Lazy;
+use uuid::{uuid, Uuid};
 
 fn send_message<'a>(msg_env: &mut OwnedEnv, pid: &LocalPid, payload: (Atom, String)) {
     msg_env
         .send_and_clear(pid, |env| payload.encode(env))
         .unwrap();
 }
-
 
 // Struct to hold discovered Bluetooth objects
 #[derive(Clone)]
@@ -40,7 +39,11 @@ pub struct BtleObject {
 }
 
 impl BtleObject {
-    pub fn new(peripheral_id: String, services: Vec<btleplug::api::Service>, characteristics: Vec<Characteristic>) -> Self {
+    pub fn new(
+        peripheral_id: String,
+        services: Vec<btleplug::api::Service>,
+        characteristics: Vec<Characteristic>,
+    ) -> Self {
         BtleObject {
             peripheral_id: peripheral_id,
             services: services,
@@ -151,85 +154,6 @@ fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
                                                 .and_then(|p| p.local_name)
                                                 .map(|local_name| format!("Name: {local_name}"))
                                                 .unwrap_or_default();
-
-                                            let predefined_prefixes =
-                                                vec!["PressureSensor", "Arduino", "HumiditySensor"];
-                                            for prefix in predefined_prefixes {
-                                                if name.contains(prefix) {
-                                                    println!("Peripheral Prefix {} found: {:?}, going to connect", prefix, name);
-
-                                                    if !peripheral_is_connected {
-                                                        // Connect if we aren't already connected.
-                                                        if let Err(err) = peripheral.connect().await
-                                                        {
-                                                            eprintln!("Error connecting to peripheral, skipping: {}", err);
-                                                            continue;
-                                                        }
-                                                    }
-                                                    let peripheral_is_connected =
-                                                        peripheral.is_connected().await;
-                                                    println!(
-                                                        "Now connected ({:?}) to peripheral {:?}.",
-                                                        peripheral_is_connected, &name
-                                                    );
-
-                                                    peripheral.discover_services().await.expect("Error discovering services");
-
-                                                    let services_set = peripheral.services();
-                                                    let characteristics_set = peripheral.characteristics();
-
-                                                    let services: Vec<_> = services_set.into_iter().collect();
-                                                    let characteristics: Vec<_> = characteristics_set.into_iter().collect();
-
-
-                                                    let btle_object = BtleObject::new(
-                                                        peripheral_id.clone(),
-                                                        services.clone(),
-                                                        characteristics.clone(),
-                                                    );
-
-                                                    btle_storage_arc.add(peripheral_id.clone(), btle_object);
-
-                                                    for characteristic in
-                                                        &characteristics
-                                                    {
-                                                        println!(
-                                                            "Checking characteristic {:?}",
-                                                            characteristic
-                                                        );
-                                                            if characteristic
-                                                                .properties
-                                                                .contains(CharPropFlags::NOTIFY)
-                                                        {
-                                                            println!("Subscribing to characteristic {:?}", characteristic.uuid);
-                                                            peripheral
-                                                                .subscribe(&characteristic)
-                                                                .await;
-                                                            // Print the first 4 notifications received.
-                                                            let mut notification_stream =
-                                                                peripheral
-                                                                    .notifications()
-                                                                    .await;
-                                                            // Process while the BLE connection is not broken or stopped.
-                                                            while let Some(event) =
-                                                                notification_stream.as_mut().expect("Error receiving notifications").next().await
-                                                            {
-                                                                match event {
-
-                                                                    ValueNotification {uuid, value} => {
-                                                                        println!(
-                                        "Received data from {:?} [{:?}]: {:?}",
-                                        name, uuid, value
-                                    );
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-
-                                                    break;
-                                                }
-                                            }
 
                                             send_message(
                                                 &mut msg_env,
@@ -368,11 +292,120 @@ fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
     Ok((atoms::ok(), pid).encode(env))
 }
 
+async fn get_peripheral_by_id(
+    central: &Adapter,
+    uuid: &Uuid,
+) -> Option<btleplug::platform::Peripheral> {
+    match central.peripherals().await {
+        Ok(peripherals) => {
+
+            println!("get_peripheral_by_id Ok peripherals: {}", peripherals.len());
+
+            for peripheral in peripherals {
+                println!(
+                    "get_peripheral_by_id peripheral_id: {:?} uuid: {:?}",
+                    peripheral.id().to_string(),
+                    uuid.to_string()
+                );
+
+                if peripheral.id().to_string() == uuid.to_string() {
+                    return Some(peripheral);
+                }
+            }
+            None
+        }
+        Err(e) => {
+            println!("get_peripheral_by_id Error: {:?}", e);
+            None
+        },
+    }
+}
 
 #[rustler::nif]
-fn connect<'a>(env: Env<'a>, uuid: String) -> Result<Term<'a>, String> {
-    println!("Connect to device {}", uuid);
-    Ok((atoms::ok(), "whatever").encode(env))
+fn connect<'a>(env: Env<'a>, peripheral_id: String) -> Result<Term<'a>, String> {
+    println!("Connect to device {}", peripheral_id);
+
+    let pid = env.pid();
+
+    task::spawn(async move {
+        let mut msg_env = rustler::env::OwnedEnv::new();
+
+        match Manager::new().await {
+            Ok(manager) => match get_central(&manager).await {
+                Ok(central) => match Uuid::parse_str(&peripheral_id) {
+                    Ok(peripheral_uuid) => {
+                        if let Some(peripheral) =
+                            get_peripheral_by_id(&central, &peripheral_uuid).await
+                        {
+                            let peripheral = Arc::new(peripheral);
+
+                            match peripheral.connect().await {
+                                Ok(_) => {
+                                    println!("Connected to {:?}", peripheral_id);
+                                    send_message(
+                                        &mut msg_env,
+                                        &pid,
+                                        (
+                                            atoms::btleplug_device_connected(),
+                                            format!("Connected to {}", peripheral_id),
+                                        ),
+                                    );
+                                }
+                                Err(e) => {
+                                    println!("Failed to connect: {:?}", e);
+                                    send_message(
+                                        &mut msg_env,
+                                        &pid,
+                                        (
+                                            atoms::btleplug_error(),
+                                            format!("Failed to connect: {:?}", e),
+                                        ),
+                                    );
+                                }
+                            }
+                        } else {
+                            println!("Peripheral not found for ID {}", peripheral_id);
+                            send_message(
+                                &mut msg_env,
+                                &pid,
+                                (
+                                    atoms::btleplug_error(),
+                                    format!("Peripheral not found for ID {}", peripheral_id),
+                                ),
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        println!(
+                            "Peripheral error parsing uuid {:?}, e: {:?}",
+                            peripheral_id, e
+                        );
+                    }
+                },
+                Err(e) => {
+                    println!("Failed to get central: {:?}", e);
+                    send_message(
+                        &mut msg_env,
+                        &pid,
+                        (atoms::btleplug_error(), "Central error".to_string()),
+                    );
+                }
+            },
+            Err(e) => {
+                println!("Failed to create manager: {:?}", e);
+                send_message(
+                    &mut msg_env,
+                    &pid,
+                    (
+                        atoms::btleplug_error(),
+                        "Manager creation error".to_string(),
+                    ),
+                );
+            }
+        }
+    });
+
+    Ok((atoms::ok(), "Connection started").encode(env))
 }
 
 async fn get_central(manager: &Manager) -> Result<Adapter, Atom> {
@@ -402,7 +435,6 @@ fn get_btle_object_by_uuid<'a>(env: Env<'a>, uuid: Term<'a>) -> Result<Term<'a>,
         None => Err(atoms::not_found()),
     }
 }
-
 
 #[rustler::nif]
 fn add(a: i64, b: i64) -> i64 {

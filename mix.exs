@@ -28,12 +28,12 @@ defmodule RustlerBtleplug.MixProject do
     ]
   end
 
-  defp aliases do
-    [
-      fmt: [
-        "format",
-        "cmd cargo fmt --manifest-path native/btleplug_client/Cargo.toml"
-      ]
-    ]
-  end
+#  defp aliases do
+#    [
+#      fmt: [
+#        "format",
+#        "cmd cargo fmt --manifest-path native/btleplug_client/Cargo.toml"
+#      ]
+#    ]
+#  end
 end

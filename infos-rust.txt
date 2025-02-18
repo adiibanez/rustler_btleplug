@@ -1,3 +1,21 @@
+// https://stackoverflow.com/questions/58671430/how-to-allow-dead-code-and-unused-imports-for-dev-builds-only
+https://stackoverflow.com/questions/19605132/is-it-possible-to-use-global-variables-in-rust
+
+
+https://doc.rust-lang.org/std/result/
+https://docs.rs/btleplug/latest/btleplug/api/struct.ValueNotification.html
+https://docs.rs/btleplug/latest/btleplug/api/trait.Peripheral.html
+
+https://blog.logrocket.com/rust-lazy-static-pattern/#advantages-disadvantages-using-lazy-static
+
+
+https://en.wikipedia.org/wiki/IBeacon
+
+https://github.com/deviceplug/btleplug/blob/73dbd12dcd830e99da63eb74313c9503076c4d40/examples/subscribe_notify_characteristic.rs
+
+
+https://hexdocs.pm/ex_unit/main/ExUnit.Callbacks.html
+
 use rustler::{Encoder, Env, Term};
 use rustler::types::atom;
 

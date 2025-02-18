@@ -41,8 +41,23 @@ defmodule RustlerBtleplug.Client do
 
       # res -> {:ok, NifIo.FileHandle.wrap_resource(res)}
 
-      number ->
-        {:ok, number}
+      result ->
+        Logger.info("Rustler scan #{inspect(result)}")
+        {:ok, result}
+    end
+  end
+
+  def connect(uuid) do
+    case RustlerBtleplug.Native.connect(uuid) do
+      {:ok, result} ->
+        Logger.info("Rustler connect #{inspect(uuid)} #{inspect(result)}")
+
+      {:error, err} ->
+        {:error, err}
+
+      result ->
+        Logger.info("Rustler connect #{inspect(result)}")
+        {:ok, result}
     end
   end
 

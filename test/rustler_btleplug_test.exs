@@ -59,7 +59,12 @@ defmodule RustlerBtleplugTest do
       _ ->
         IO.puts("not sure 2")
     end
+
     IO.puts("test")
+
+    messages = :erlang.process_info(self(), :messages)
+    IO.inspect(messages, label: "messages")
+
     assert_receive :candidate_error
   end
 end

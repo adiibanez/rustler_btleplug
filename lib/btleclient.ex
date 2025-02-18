@@ -9,10 +9,9 @@ defmodule RustlerBtleplug.Client do
       {:error, err} ->
         {:error, err}
 
-        # res -> {:ok, NifIo.FileHandle.wrap_resource(res)}
-        number ->
+      # res -> {:ok, NifIo.FileHandle.wrap_resource(res)}
+      number ->
         {:ok, number}
-
     end
   end
 
@@ -24,7 +23,6 @@ defmodule RustlerBtleplug.Client do
       {:error, err} ->
         {:error, err}
 
-
       # res -> {:ok, NifIo.FileHandle.wrap_resource(res)}
 
       number ->
@@ -32,8 +30,8 @@ defmodule RustlerBtleplug.Client do
     end
   end
 
-   @spec scan() :: :ok | {:error, any()} | {:ok, any()}
-   def scan() do
+  @spec scan() :: :ok | {:error, any()} | {:ok, any()}
+  def scan() do
     case RustlerBtleplug.Native.scan() do
       {:ok, result} ->
         Logger.info("Rustler scan #{inspect(result)}")
@@ -57,7 +55,7 @@ defmodule RustlerBtleplug.Client do
       {:error, err} ->
         {:error, err}
 
-        number ->
+      number ->
         {:ok, number}
     end
   end

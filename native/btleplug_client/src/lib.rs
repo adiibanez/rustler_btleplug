@@ -17,115 +17,152 @@ use btleplug::api::{
 };
 use btleplug::platform::{Adapter, Manager};
 use futures::stream::StreamExt;
-use std::error::Error;
+//use std::error::Error;
 
 use rustler::env::OwnedEnv;
 use rustler::types::atom;
 use rustler::types::LocalPid;
-//use rustler::types::Pid;
-use rustler::{Encoder, Env, Term};
+use rustler::{Atom, Encoder, Env, Error, Term};
 use std::collections::HashMap;
 
-
-async fn get_central(manager: &Manager) -> Adapter {
-    let adapters = manager.adapters().await.unwrap();
-    adapters.into_iter().nth(0).unwrap()
-}
-
+// async fn get_central(manager: &Manager) -> Adapter {
+//     let adapters = manager.adapters().await.unwrap();
+//     adapters.into_iter().nth(0).unwrap()
+// }
 
 #[rustler::nif]
-//fn scan<'a>(env: Env<'a>) -> Term<'a> {
-fn scan<'a>(env: Env<'a>) -> Result<rustler::Term<'a>, LocalPid> {
-    let mut msg_env = rustler::env::OwnedEnv::new();
+fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
     let pid = env.pid();
 
+    // task::spawn(async move {
+    //     println!("Send async msg to async task");
+
+    //     let mut msg_env = rustler::env::OwnedEnv::new();
+
+    //     msg_env
+    //         .send_and_clear(&pid, |env| (atoms::candidate_error()).encode(env))
+    //         .unwrap();
+    //     println!("After msg send");
+    //     // match tx.send(Msg::AddIceCandidate(ice_candidate)).await {
+    //     //     Ok(_) => (),
+    //     //     Err(_err) => trace!("send error"),
+    //     // }
+    // });
+
     task::spawn(async move {
-        println!("Send async msg to async task");
-        msg_env.send_and_clear(&pid, |env| {
-        (atoms::candidate_error()).encode(env)
-    }).unwrap();
-        println!("After msg send");
-        // match tx.send(Msg::AddIceCandidate(ice_candidate)).await {
-        //     Ok(_) => (),
-        //     Err(_err) => trace!("send error"),
-        // }
+        println!("Test btleplug scan");
+
+        let mut msg_env = rustler::env::OwnedEnv::new();
+
+        let manager_result = Manager::new().await;
+
+        match manager_result {
+            Ok(manager) => {
+                let central_result = get_central(&manager).await;
+
+                match central_result {
+                    Ok(central) => {
+                        println!("Got central");
+
+                        msg_env
+                            .send_and_clear(&pid, |env| {
+                                (atoms::btleplug_got_central(), "additional_data").encode(env)
+                            })
+                            .unwrap();
+
+                        let mut events = central.events().await;
+
+                        let _ = central.start_scan(ScanFilter::default()).await;
+
+                        // Print based on whatever the event receiver outputs. Note that the event
+                        // receiver blocks, so in a real program, this should be run in its own
+                        // thread (not task, as this library does not yet use async channels).
+                        while let Some(event) = events.as_mut().expect("REASON").next().await {
+                            match event {
+                                CentralEvent::DeviceDiscovered(id) => {
+                                    let peripheral = central.peripheral(&id).await;
+                                    // let properties = peripheral.properties().await;
+                                    // let name = properties
+                                    //     .and_then(|p| p.local_name)
+                                    //     .map(|local_name| format!("Name: {local_name}"))
+                                    //     .unwrap_or_default();
+                                    // println!("DeviceDiscovered: {:?} {}", id, name);
+
+                                    msg_env
+                                        .send_and_clear(&pid, |env| {
+                                            (
+                                                atoms::btleplug_device_discovered(),
+                                                print!("DeviceDiscovered: {:?}", id),
+                                            )
+                                                .encode(env)
+                                        })
+                                        .unwrap();
+                                }
+                                CentralEvent::StateUpdate(state) => {
+                                    println!("AdapterStatusUpdate {:?}", state);
+                                }
+                                CentralEvent::DeviceConnected(id) => {
+                                    println!("DeviceConnected: {:?}", id);
+                                }
+                                CentralEvent::DeviceDisconnected(id) => {
+                                    println!("DeviceDisconnected: {:?}", id);
+                                }
+                                CentralEvent::ManufacturerDataAdvertisement {
+                                    id,
+                                    manufacturer_data,
+                                } => {
+                                    println!(
+                                        "ManufacturerDataAdvertisement: {:?}, {:?}",
+                                        id, manufacturer_data
+                                    );
+                                }
+                                CentralEvent::ServiceDataAdvertisement { id, service_data } => {
+                                    println!(
+                                        "ServiceDataAdvertisement: {:?}, {:?}",
+                                        id, service_data
+                                    );
+                                }
+                                CentralEvent::ServicesAdvertisement { id, services } => {
+                                    let services: Vec<String> =
+                                        services.into_iter().map(|s| s.to_short_string()).collect();
+                                    println!("ServicesAdvertisement: {:?}, {:?}", id, services);
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+
+                    Err(e) => {
+                        msg_env
+                            .send_and_clear(&pid, |env| (atoms::btleplug_error()).encode(env))
+                            .unwrap();
+                        // Handle the error from get_central
+                        println!("Failed to get central: {:?}", e);
+                    }
+                }
+            }
+            Err(e) => {
+                // Handle the error from Manager::new()
+                println!("Failed to create manager: {:?}", e);
+            }
+        }
     });
 
-    // Return a proper term instead of Ok(_)
-    //(atoms::ok()).encode(env)
-
     Ok((atoms::ok(), pid).encode(env))
+}
 
-    //"test".to_string()
-    //let pid = env.get_pid();
-
-    // if pid {
-    //     println!("Hello, world!");
-    // }
-
-    //fn scan() -> String {
-    // let manager = Manager::new();
-    // let adapter_list = manager.adapters();
-    // if adapter_list.is_empty() {
-    //     eprintln!("No Bluetooth adapters found");
-    // }
-
-    // for adapter in adapter_list.iter() {
-    //     println!("Starting scan on {}...", adapter.adapter_info());
-    //     adapter
-    //         .start_scan(ScanFilter::default())
-    //         .expect("Can't scan BLE adapter for connected devices...");
-
-    //     let peripherals = adapter.peripherals();
-    //     if peripherals.is_empty() {
-    //         eprintln!("->>> BLE peripheral devices were not found, sorry. Exiting...");
-    //     } else {
-    //         // All peripheral devices in range
-    //         for peripheral in peripherals.iter() {
-    //             let properties = peripheral.properties();
-    //             let is_connected = peripheral.is_connected();
-    //             let local_name = properties
-    //                 .unwrap()
-    //                 .local_name
-    //                 .unwrap_or(String::from("(peripheral name unknown)"));
-    //             println!(
-    //                 "Peripheral {:?} is connected: {:?}",
-    //                 local_name, is_connected
-    //             );
-    //             if !is_connected {
-    //                 println!("Connecting to peripheral {:?}...", &local_name);
-    //                 if let Err(err) = peripheral.connect() {
-    //                     eprintln!("Error connecting to peripheral, skipping: {}", err);
-    //                     continue;
-    //                 }
-    //             }
-    //             let is_connected = peripheral.is_connected();
-    //             println!(
-    //                 "Now connected ({:?}) to peripheral {:?}...",
-    //                 is_connected, &local_name
-    //             );
-    //             peripheral.discover_services();
-    //             println!("Discover peripheral {:?} services...", &local_name);
-    //             for service in peripheral.services() {
-    //                 println!(
-    //                     "Service UUID {}, primary: {}",
-    //                     service.uuid, service.primary
-    //                 );
-    //                 for characteristic in service.characteristics {
-    //                     println!("  {:?}", characteristic);
-    //                 }
-    //             }
-    //             if is_connected {
-    //                 println!("Disconnecting from peripheral {:?}...", &local_name);
-    //                 peripheral
-    //                     .disconnect()
-    //                     .expect("Error disconnecting from BLE peripheral");
-    //             }
-    //         }
-    //     }
-    // }
-    // "test".to_string()
-    //Ok(())
+async fn get_central(manager: &Manager) -> Result<Adapter, Atom> {
+    let adapters_result = manager.adapters().await;
+    match adapters_result {
+        Ok(adapters) => {
+            if let Some(adapter) = adapters.into_iter().next() {
+                Ok(adapter)
+            } else {
+                Err(atoms::no_adapters_found())
+            }
+        }
+        Err(_e) => Err(atoms::btleplug_error()),
+    }
 }
 
 pub struct State<'a> {

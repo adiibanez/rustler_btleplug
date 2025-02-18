@@ -1,0 +1,45 @@
+use rustler::{Encoder, Env, Term};
+use rustler::types::atom;
+
+fn create_term<'a>(env: Env<'a>) -> Term<'a> {
+    // Create from atom
+    (atom::ok()).encode(env)
+    
+    // Create from tuple
+    (atom::ok(), "some value").encode(env)
+    
+    // Create from string
+    "hello".encode(env)
+    
+    // Create from number
+    42.encode(env)
+    
+    // Create from Option
+    Option::<String>::None.encode(env)
+    
+    // Create error tuple
+    (atom::error(), "error message").encode(env)
+}
+
+
+
+#[rustler::nif]
+fn scan<'a>(env: Env<'a>) -> Term<'a> {
+    let mut msg_env = rustler::env::OwnedEnv::new();
+    let pid: LocalPid = env.pid();
+
+    msg_env.send_and_clear(&pid, |env| {
+        (atoms::candidate_error()).encode(env)
+    }).unwrap();
+
+    // Return a proper term instead of Ok(_)
+    (atoms::ok()).encode(env)
+}
+
+
+
+(atoms::ok()).encode(env)  // just :ok
+(atoms::ok(), value).encode(env)  // {:ok, value}
+
+
+(atoms::error(), "error message").encode(env)  // {:error, reason}

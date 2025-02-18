@@ -1,0 +1,166 @@
+use btleplug::api::{Central, CharPropFlags, Characteristic, Manager as _, Peripheral, ScanFilter};
+use btleplug::platform::Manager;
+use futures::stream::StreamExt;
+use rustler::{Atom, Binary, Env, Error, OwnedBinary, ResourceArc, Term};
+use std::sync::Mutex;
+use std::time::Duration;
+use tokio::runtime::Runtime; // Needed for tokio::spawn
+use tokio::time;
+use uuid::Uuid;
+
+mod atoms {
+    rustler::atoms! {
+        ok,
+        error,
+        adapter_not_found,
+        scan_failed,
+        connect_failed,
+        discover_services_failed,
+        disconnect_failed,
+        subscribe_failed,
+        notification,
+        invalid_uuid,
+        unknown
+    }
+}
+
+// Define the FileResource struct.
+pub struct BlePeripheralResource {
+    pub peripheral: Mutex<Option<Box<dyn Peripheral>>>, // Store the Peripheral trait object
+    pub runtime: Runtime,
+}
+
+impl BlePeripheralResource {
+  fn new(peripheral: Option<Box<dyn Peripheral>>, runtime: Runtime) -> Self {
+      BlePeripheralResource {
+          peripheral: Mutex::new(peripheral),
+          runtime: runtime,
+      }
+  }
+}
+
+// Elixir NIF to initialize the BLE manager.
+#[rustler::nif]
+async fn init(env: Env) -> Result<(Atom, ResourceArc<BlePeripheralResource>), Error> {
+    let runtime = Runtime::new().unwrap();
+    let manager = runtime.block_on(Manager::new()).map_err(|_e| Error::BadArg)?;
+
+    let adapter_list = runtime.block_on(manager.adapters()).map_err(|_e| Error::BadArg)?;
+    if adapter_list.is_empty() {
+        return Ok((atoms::adapter_not_found(), ResourceArc::new(BlePeripheralResource::new(None, runtime))));
+    }
+
+    let adapter = adapter_list.into_iter().next().unwrap();
+    let peripherals = runtime.block_on(adapter.peripherals()).map_err(|_e| Error::BadArg)?;
+
+    // This is a placeholder.  You'll need a mechanism (e.g., passing a device name)
+    // to select the desired peripheral.
+    let peripheral = peripherals.into_iter().next();
+
+    match peripheral {
+        Some(peripheral) => {
+            let peripheral_resource = ResourceArc::new(BlePeripheralResource::new(Some(peripheral), runtime));
+            Ok((atoms::ok(), peripheral_resource))
+        }
+        None => {
+            Ok((atoms::error(), ResourceArc::new(BlePeripheralResource::new(None, runtime))))
+        }
+    }
+
+}
+
+// Elixir NIF to start scanning for peripherals.
+#[rustler::nif]
+fn start_scan(
+    env: Env,
+    peripheral_resource: ResourceArc<BlePeripheralResource>,
+) -> Result<Atom, Error> {
+    let mut peripheral_lock = peripheral_resource.peripheral.lock().unwrap();
+
+    if let Some(peripheral) = peripheral_lock.take() {
+        let scan_result = peripheral_resource.runtime.block_on(peripheral.discover_services());
+        match scan_result {
+            Ok(_) => {
+                Ok(atoms::ok())
+            }
+            Err(_e) => Ok(atoms::error()),
+        }
+    } else {
+        Ok(atoms::error())
+    }
+
+}
+
+// Elixir NIF to subscribe to a characteristic and receive notifications.
+#[rustler::nif]
+fn subscribe(
+    env: Env,
+    peripheral_resource: ResourceArc<BlePeripheralResource>,
+    characteristic_uuid_str: String,
+) -> Result<Atom, Error> {
+    let uuid = match Uuid::parse_str(&characteristic_uuid_str) {
+        Ok(uuid) => uuid,
+        Err(_e) => return Ok(atoms::invalid_uuid()), // Invalid UUID format
+    };
+
+    let mut peripheral_lock = peripheral_resource.peripheral.lock().unwrap();
+    let peripheral = peripheral_lock.as_mut().ok_or(Error::BadArg)?;
+
+    // Discover services and characteristics
+    let discover_services_result = peripheral_resource.runtime.block_on(peripheral.discover_services());
+    match discover_services_result {
+        Ok(_) => {
+            let characteristics = peripheral.characteristics();
+            let characteristic = characteristics
+                .iter()
+                .find(|c| c.uuid == uuid && c.properties.contains(CharPropFlags::NOTIFY));
+
+            match characteristic {
+                Some(characteristic) => {
+                    let subscribe_result = peripheral_resource.runtime.block_on(peripheral.subscribe(characteristic));
+                    match subscribe_result {
+                        Ok(_) => {
+                            // Spawn a task to listen for notifications
+                            let peripheral_clone = Clone::clone(&peripheral_lock);
+                            let env_clone = env; // Clone the environment
+                            let resource_clone = Clone::clone(&peripheral_resource);
+                            peripheral_resource.runtime.spawn(async move {
+                                let mut notification_stream = match peripheral_clone.unwrap().notifications().await {
+                                    Ok(stream) => stream,
+                                    Err(_e) => return,
+                                };
+
+                                while let Some(data) = notification_stream.next().await {
+                                    // Convert the data.value to a Binary
+                                    let mut binary: OwnedBinary = OwnedBinary::new(data.value.len()).unwrap();
+                                    binary.as_mut_slice().copy_from_slice(&data.value);
+                                    let term = Binary::from_owned(binary).to_term(env_clone);
+
+                                    // Send the notification to Elixir
+                                    rustler::send(
+                                        &env_clone.pid(),
+                                        rustler::Term::new_tuple(
+                                            env_clone,
+                                            &[atoms::notification().encode(env_clone), term.encode(env_clone)],
+                                        ),
+                                    );
+                                }
+                            });
+                            Ok(atoms::ok())
+                        }
+                        Err(_e) => Ok(atoms::subscribe_failed()),
+                    }
+                }
+                None => Ok(atoms::error()), // Characteristic not found or doesn't support notify
+            }
+        }
+        Err(_e) => Ok(atoms::discover_services_failed()),
+    }
+}
+
+
+#[rustler::nif]
+fn load(env: Env, _term: Term) -> bool {
+    rustler::resource!(BlePeripheralResource, env);
+    true
+}

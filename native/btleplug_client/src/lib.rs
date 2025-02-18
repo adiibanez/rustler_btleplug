@@ -1,12 +1,4 @@
 extern crate btleplug;
-//extern crate tokio;
-//use crate::atoms;
-//use crate::state::Ref;
-// mod atoms;
-// mod task;
-
-//pub mod atoms;
-//pub mod task;
 mod atoms;
 mod task;
 //use crate::atoms;
@@ -16,38 +8,24 @@ use btleplug::api::{
     bleuuid::BleUuid, Central, CentralEvent, Manager as _, Peripheral, ScanFilter,
 };
 use btleplug::platform::{Adapter, Manager};
+
 use futures::stream::StreamExt;
 //use std::error::Error;
 
 use rustler::env::OwnedEnv;
-use rustler::types::atom;
 use rustler::types::LocalPid;
-use rustler::{Atom, Encoder, Env, Error, Term};
+use rustler::{Atom, Encoder, Env, Term};
 use std::collections::HashMap;
 
-// async fn get_central(manager: &Manager) -> Adapter {
-//     let adapters = manager.adapters().await.unwrap();
-//     adapters.into_iter().nth(0).unwrap()
-// }
+fn send_message<'a>(msg_env: &mut OwnedEnv, pid: &LocalPid, payload: (Atom, String)) {
+    msg_env
+        .send_and_clear(pid, |env| payload.encode(env))
+        .unwrap();
+}
 
 #[rustler::nif]
 fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
     let pid = env.pid();
-
-    // task::spawn(async move {
-    //     println!("Send async msg to async task");
-
-    //     let mut msg_env = rustler::env::OwnedEnv::new();
-
-    //     msg_env
-    //         .send_and_clear(&pid, |env| (atoms::candidate_error()).encode(env))
-    //         .unwrap();
-    //     println!("After msg send");
-    //     // match tx.send(Msg::AddIceCandidate(ice_candidate)).await {
-    //     //     Ok(_) => (),
-    //     //     Err(_err) => trace!("send error"),
-    //     // }
-    // });
 
     task::spawn(async move {
         println!("Test btleplug scan");
@@ -64,39 +42,48 @@ fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
                     Ok(central) => {
                         println!("Got central");
 
-                        msg_env
-                            .send_and_clear(&pid, |env| {
-                                (atoms::btleplug_got_central(), "additional_data").encode(env)
-                            })
-                            .unwrap();
+                        send_message(
+                            &mut msg_env,
+                            &pid,
+                            (atoms::btleplug_got_central(), "additional_data".to_string()),
+                        );
 
                         let mut events = central.events().await;
 
                         let _ = central.start_scan(ScanFilter::default()).await;
 
-                        // Print based on whatever the event receiver outputs. Note that the event
-                        // receiver blocks, so in a real program, this should be run in its own
-                        // thread (not task, as this library does not yet use async channels).
                         while let Some(event) = events.as_mut().expect("REASON").next().await {
                             match event {
                                 CentralEvent::DeviceDiscovered(id) => {
-                                    let peripheral = central.peripheral(&id).await;
-                                    // let properties = peripheral.properties().await;
-                                    // let name = properties
-                                    //     .and_then(|p| p.local_name)
-                                    //     .map(|local_name| format!("Name: {local_name}"))
-                                    //     .unwrap_or_default();
-                                    // println!("DeviceDiscovered: {:?} {}", id, name);
+                                    let peripheral_result = central.peripheral(&id).await;
 
-                                    msg_env
-                                        .send_and_clear(&pid, |env| {
-                                            (
-                                                atoms::btleplug_device_discovered(),
-                                                print!("DeviceDiscovered: {:?}", id),
-                                            )
-                                                .encode(env)
-                                        })
-                                        .unwrap();
+                                    match peripheral_result {
+                                        Ok(peripheral) => {
+                                            let peripheral_is_connected: bool =
+                                                peripheral.is_connected().await.expect("REASON");
+
+                                            let properties =
+                                                peripheral.properties().await.expect("REASON");
+
+                                            let name = properties
+                                                .and_then(|p| p.local_name)
+                                                .map(|local_name| format!("Name: {local_name}"))
+                                                .unwrap_or_default();
+
+                                            send_message(
+                                                &mut msg_env,
+                                                &pid,
+                                                (
+                                                    atoms::btleplug_device_discovered(),
+                                                    format!(
+                                                        "PeripheralDiscovered: {:?}, {:?} {:?}",
+                                                        id, name, peripheral_is_connected
+                                                    ),
+                                                ),
+                                            );
+                                        }
+                                        Err(e) => {}
+                                    }
                                 }
                                 CentralEvent::StateUpdate(state) => {
                                     println!("AdapterStatusUpdate {:?}", state);
@@ -131,18 +118,17 @@ fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
                             }
                         }
                     }
-
                     Err(e) => {
-                        msg_env
-                            .send_and_clear(&pid, |env| (atoms::btleplug_error()).encode(env))
-                            .unwrap();
-                        // Handle the error from get_central
+                        send_message(
+                            &mut msg_env,
+                            &pid,
+                            (atoms::btleplug_error(), "".to_string()),
+                        );
                         println!("Failed to get central: {:?}", e);
                     }
                 }
             }
             Err(e) => {
-                // Handle the error from Manager::new()
                 println!("Failed to create manager: {:?}", e);
             }
         }

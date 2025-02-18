@@ -1,11 +1,17 @@
+#![allow(unused_imports)]
+#![allow(dead_code)]
+
 extern crate btleplug;
 mod atoms;
 mod task;
+mod utils;
 //use crate::atoms;
 //use crate::{atoms, task};
 
 use btleplug::api::{
     bleuuid::BleUuid, Central, CentralEvent, Manager as _, Peripheral, ScanFilter,
+    ValueNotification,
+    CharPropFlags
 };
 use btleplug::platform::{Adapter, Manager};
 
@@ -70,6 +76,78 @@ fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
                                                 .map(|local_name| format!("Name: {local_name}"))
                                                 .unwrap_or_default();
 
+                                            let predefined_prefixes =
+                                                vec!["PressureSensor", "Arduino", "HumiditySensor"];
+                                            for prefix in predefined_prefixes {
+                                                if name.contains(prefix) {
+                                                    println!("Peripheral Prefix {} found: {:?}, going to connect", prefix, name);
+
+                                                    if !peripheral_is_connected {
+                                                        // Connect if we aren't already connected.
+                                                        if let Err(err) = peripheral.connect().await
+                                                        {
+                                                            eprintln!("Error connecting to peripheral, skipping: {}", err);
+                                                            continue;
+                                                        }
+                                                    }
+                                                    let peripheral_is_connected =
+                                                        peripheral.is_connected().await;
+                                                    println!(
+                                                        "Now connected ({:?}) to peripheral {:?}.",
+                                                        peripheral_is_connected, &name
+                                                    );
+
+                                                    peripheral.discover_services().await.expect("Error discovering services");
+
+                                                    for characteristic in
+                                                        peripheral.characteristics()
+                                                    {
+                                                        println!(
+                                                            "Checking characteristic {:?}",
+                                                            characteristic
+                                                        );
+                                                        // Subscribe to notifications from the characteristic with the selected
+                                                        // UUID.
+                                                        // if characteristic.uuid
+                                                        //     == NOTIFY_CHARACTERISTIC_UUID
+                                                            if characteristic
+                                                                .properties
+                                                                .contains(CharPropFlags::NOTIFY)
+                                                        {
+                                                            println!("Subscribing to characteristic {:?}", characteristic.uuid);
+                                                            peripheral
+                                                                .subscribe(&characteristic)
+                                                                .await;
+                                                            // Print the first 4 notifications received.
+                                                            let mut notification_stream =
+                                                                peripheral
+                                                                    .notifications()
+                                                                    .await;
+                                                                    // .take(4).expect("Error receiving notifications");
+                                                            // Process while the BLE connection is not broken or stopped.
+                                                            while let Some(event) =
+                                                                notification_stream.as_mut().expect("Error receiving notifications").next().await
+                                                            {
+                                                                match event {
+
+                                                                    ValueNotification {uuid, value} => {
+                                                                        println!(
+                                        "Received data from {:?} [{:?}]: {:?}",
+                                        name, uuid, value
+                                    );
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
+                                                    // while let Some(event) = peripheral.as_mut().expect("REASON").next().await {
+                                                    // }
+
+                                                    break;
+                                                }
+                                            }
+
                                             send_message(
                                                 &mut msg_env,
                                                 &pid,
@@ -82,17 +160,55 @@ fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
                                                 ),
                                             );
                                         }
-                                        Err(e) => {}
+                                        Err(e) => {
+                                            println!("PeripheralDiscovery Error {:?}", e);
+                                            send_message(
+                                                &mut msg_env,
+                                                &pid,
+                                                (
+                                                    atoms::btleplug_device_discovery_error(),
+                                                    format!(
+                                                        "PeripheralDiscovered: Error {:?}, {:?}",
+                                                        id, e
+                                                    ),
+                                                ),
+                                            );
+                                        }
                                     }
                                 }
                                 CentralEvent::StateUpdate(state) => {
                                     println!("AdapterStatusUpdate {:?}", state);
+
+                                    send_message(
+                                        &mut msg_env,
+                                        &pid,
+                                        (
+                                            atoms::btleplug_adapter_status_update(),
+                                            format!("AdapterStatusUpdate: State {:?}", state),
+                                        ),
+                                    );
                                 }
                                 CentralEvent::DeviceConnected(id) => {
                                     println!("DeviceConnected: {:?}", id);
+                                    send_message(
+                                        &mut msg_env,
+                                        &pid,
+                                        (
+                                            atoms::btleplug_device_connected(),
+                                            format!("DeviceConnected: ID {:?}", id),
+                                        ),
+                                    );
                                 }
                                 CentralEvent::DeviceDisconnected(id) => {
                                     println!("DeviceDisconnected: {:?}", id);
+                                    send_message(
+                                        &mut msg_env,
+                                        &pid,
+                                        (
+                                            atoms::btleplug_device_disconnected(),
+                                            format!("DeviceDisconnected: ID {:?}", id),
+                                        ),
+                                    );
                                 }
                                 CentralEvent::ManufacturerDataAdvertisement {
                                     id,
@@ -102,17 +218,49 @@ fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
                                         "ManufacturerDataAdvertisement: {:?}, {:?}",
                                         id, manufacturer_data
                                     );
+                                    send_message(
+                                        &mut msg_env,
+                                        &pid,
+                                        (
+                                            atoms::btleplug_manufacturer_data_advertisement(),
+                                            format!("ManufacturerDataAdvertisement: ID {:?}, DATA: {:?}", id, manufacturer_data),
+                                        ),
+                                    );
                                 }
                                 CentralEvent::ServiceDataAdvertisement { id, service_data } => {
                                     println!(
                                         "ServiceDataAdvertisement: {:?}, {:?}",
                                         id, service_data
                                     );
+
+                                    send_message(
+                                        &mut msg_env,
+                                        &pid,
+                                        (
+                                            atoms::btleplug_service_data_advertisement(),
+                                            format!(
+                                                "ServiceDataAdvertisement: ID {:?}, DATA: {:?}",
+                                                id, service_data
+                                            ),
+                                        ),
+                                    );
                                 }
                                 CentralEvent::ServicesAdvertisement { id, services } => {
                                     let services: Vec<String> =
                                         services.into_iter().map(|s| s.to_short_string()).collect();
                                     println!("ServicesAdvertisement: {:?}, {:?}", id, services);
+
+                                    send_message(
+                                        &mut msg_env,
+                                        &pid,
+                                        (
+                                            atoms::btleplug_services_advertisement(),
+                                            format!(
+                                                "ServicesAdvertisement: ID {:?}, SERVICES: {:?}",
+                                                id, services
+                                            ),
+                                        ),
+                                    );
                                 }
                                 _ => {}
                             }
@@ -144,7 +292,7 @@ async fn get_central(manager: &Manager) -> Result<Adapter, Atom> {
             if let Some(adapter) = adapters.into_iter().next() {
                 Ok(adapter)
             } else {
-                Err(atoms::no_adapters_found())
+                Err(atoms::btleplug_no_adapters_found())
             }
         }
         Err(_e) => Err(atoms::btleplug_error()),
@@ -189,7 +337,7 @@ fn init<'a>(env: Env<'a>, opts: Term<'a>) -> Term<'a> {
     //     Ok(config) => config,
     // };
 
-    let state = State::new(opts, env.pid());
+    let _state = State::new(opts, env.pid());
     //let resource = ResourceArc::new(Ref(Arc::new(Mutex::new(state))));
 
     (atoms::ok()).encode(env)

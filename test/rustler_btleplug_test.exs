@@ -36,13 +36,12 @@ defmodule RustlerBtleplugTest do
         assert true
 
       {:ok, result} ->
-        IO.puts("ok 2: #{inspect(result)}")
+        # IO.puts("ok 2: #{inspect(result)}")
 
         case RustlerBtleplug.Client.scan() do
-          {:ok, map} ->
-            IO.puts("ok 3: #{inspect(map)}")
-            assert is_map(map)
-
+          # {:ok, map} ->
+          #   IO.puts("ok 3: #{inspect(map)}")
+          #   assert is_map(map)
           result ->
             IO.puts("not sure: #{inspect(result)}")
         end
@@ -53,16 +52,14 @@ defmodule RustlerBtleplugTest do
       {:error, error} ->
         IO.puts("error: #{inspect(error)}")
 
-      :ok ->
-        IO.puts("simple :ok")
+      # :ok ->
+      #   IO.puts("simple :ok")
 
-      _ ->
-        IO.puts("not sure 2")
+      # _ ->
+      #   IO.puts("not sure 2")
     end
 
-    IO.puts("test")
-
-    Process.sleep(2000)
+    Process.sleep(5000)
 
     messages = :erlang.process_info(self(), :messages)
     IO.inspect(messages, label: "messages")

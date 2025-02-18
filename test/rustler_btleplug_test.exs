@@ -52,11 +52,11 @@ defmodule RustlerBtleplugTest do
       {:error, error} ->
         IO.puts("error: #{inspect(error)}")
 
-      # :ok ->
-      #   IO.puts("simple :ok")
+        # :ok ->
+        #   IO.puts("simple :ok")
 
-      # _ ->
-      #   IO.puts("not sure 2")
+        # _ ->
+        #   IO.puts("not sure 2")
     end
 
     Process.sleep(5000)
@@ -65,7 +65,7 @@ defmodule RustlerBtleplugTest do
     IO.inspect(messages, label: "messages")
 
     assert_receive {:btleplug_got_central, _}
-     #no_adapters_found,
+    # no_adapters_found,
     assert_receive {:btleplug_device_discovered, _}
   end
 end

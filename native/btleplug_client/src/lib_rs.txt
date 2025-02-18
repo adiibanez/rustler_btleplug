@@ -2,27 +2,67 @@
 #![allow(dead_code)]
 
 extern crate btleplug;
+
 mod atoms;
 mod task;
 mod utils;
 
 use btleplug::api::{
-    bleuuid::BleUuid, Central, CentralEvent, Manager as _, Peripheral, ScanFilter,
+    bleuuid::BleUuid, Central, CentralEvent, Characteristic, CharPropFlags, Manager as _, Peripheral, ScanFilter,
     ValueNotification,
-    CharPropFlags
 };
-use btleplug::platform::{Adapter, Manager};
-
+use btleplug::platform::{Adapter, Manager, PeripheralId};
 use futures::stream::StreamExt;
-
 use rustler::env::OwnedEnv;
 use rustler::types::LocalPid;
-use rustler::{Atom, Encoder, Env, Term};
+use rustler::{Atom, Encoder, Env, Error, Term, ResourceArc, NifStruct, NifUnitEnum};
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use btleplug::api::Characteristic;
+use std::sync::Mutex;
 use uuid::Uuid;
-use once_cell::sync::Lazy;
+
+// Define structs to represent Bluetooth data
+#[derive(Debug, Clone, NifStruct)]
+#[rustler(encode, decode)]
+#[module = "RustlerBtleplug.PeripheralData"]
+struct PeripheralData {
+    id: String, // Changed to String
+    name: Option<String>,
+    services: Vec<ServiceData>,
+}
+
+#[derive(Debug, Clone, NifStruct)]
+#[rustler(encode, decode)]
+#[module = "RustlerBtleplug.ServiceData"]
+struct ServiceData {
+    uuid: String,
+    characteristics: Vec<CharacteristicData>,
+}
+
+#[derive(Debug, Clone, NifStruct)]
+#[rustler(encode, decode)]
+#[module = "RustlerBtleplug.CharacteristicData"]
+struct CharacteristicData {
+    uuid: String,
+    properties: u32, // Changed to u32
+}
+
+// Define the global state
+pub struct GlobalState {
+    peripherals: Mutex<HashMap<String, PeripheralData>>, // Changed to String
+}
+
+impl GlobalState {
+    fn new() -> Self {
+        GlobalState {
+            peripherals: Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+// Use lazy_static to initialize the global state
+lazy_static::lazy_static! {
+    static ref GLOBAL_STATE: GlobalState = GlobalState::new();
+}
 
 fn send_message<'a>(msg_env: &mut OwnedEnv, pid: &LocalPid, payload: (Atom, String)) {
     msg_env
@@ -30,81 +70,9 @@ fn send_message<'a>(msg_env: &mut OwnedEnv, pid: &LocalPid, payload: (Atom, Stri
         .unwrap();
 }
 
-
-// Struct to hold discovered Bluetooth objects
-#[derive(Clone)]
-pub struct BtleObject {
-    pub peripheral_id: String, // Store the peripheral's ID
-    pub services: Vec<btleplug::api::Service>,
-    pub characteristics: Vec<Characteristic>,
-}
-
-impl BtleObject {
-    pub fn new(peripheral_id: String, services: Vec<btleplug::api::Service>, characteristics: Vec<Characteristic>) -> Self {
-        BtleObject {
-            peripheral_id: peripheral_id,
-            services: services,
-            characteristics: characteristics,
-        }
-    }
-}
-
-// Thread-safe storage for discovered Bluetooth objects (No Rustler!)
-pub struct BtleStorage {
-    objects: Mutex<HashMap<String, BtleObject>>,
-}
-
-impl BtleStorage {
-    pub fn new() -> Self {
-        BtleStorage {
-            objects: Mutex::new(HashMap::new()),
-        }
-    }
-
-    pub fn add(&self, id: String, object: BtleObject) {
-        let mut objects = self.objects.lock().unwrap();
-        objects.insert(id, object);
-    }
-
-    pub fn get(&self, id: &str) -> Option<BtleObject> {
-        let objects = self.objects.lock().unwrap();
-        objects.get(id).cloned() // Clone the BtleObject if found
-    }
-
-    pub fn get_by_uuid(&self, uuid: &str) -> Option<BtleObject> {
-        let objects = self.objects.lock().unwrap();
-        for (_id, obj) in objects.iter() {
-            for service in &obj.services {
-                if service.uuid.to_string() == uuid {
-                    return Some(obj.clone()); // Clone the BtleObject if a service UUID matches
-                }
-            }
-            for characteristic in &obj.characteristics {
-                if characteristic.uuid.to_string() == uuid {
-                    return Some(obj.clone()); // Clone the BtleObject if a characteristic UUID matches
-                }
-            }
-        }
-        None
-    }
-}
-
-// Static storage for BtleStorage
-static BTLE_STORAGE: Lazy<Arc<BtleStorage>> = Lazy::new(|| Arc::new(BtleStorage::new()));
-
-// Init function.
 #[rustler::nif]
-fn init<'a>(env: Env<'a>) -> Term<'a> {
-    // The BTLE_STORAGE is initialized when first accessed, so calling it here is ok.
-    let _ = &BTLE_STORAGE; // Force initialization of BTLE_STORAGE
-    atoms::ok().encode(env)
-}
-
-#[rustler::nif]
-fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
+fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Error> {
     let pid = env.pid();
-
-    let btle_storage_arc = BTLE_STORAGE.clone(); // Access the lazy static here
 
     task::spawn(async move {
         println!("Test btleplug scan");
@@ -138,9 +106,6 @@ fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
 
                                     match peripheral_result {
                                         Ok(peripheral) => {
-                                            let peripheral_id = id.to_string();
-                                            let peripheral = Arc::new(peripheral); // Wrap in Arc
-
                                             let peripheral_is_connected: bool =
                                                 peripheral.is_connected().await.expect("REASON");
 
@@ -148,87 +113,60 @@ fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
                                                 peripheral.properties().await.expect("REASON");
 
                                             let name = properties
-                                                .and_then(|p| p.local_name)
-                                                .map(|local_name| format!("Name: {local_name}"))
-                                                .unwrap_or_default();
+                                                .and_then(|p| p.local_name);
 
                                             let predefined_prefixes =
                                                 vec!["PressureSensor", "Arduino", "HumiditySensor"];
-                                            for prefix in predefined_prefixes {
-                                                if name.contains(prefix) {
-                                                    println!("Peripheral Prefix {} found: {:?}, going to connect", prefix, name);
-
-                                                    if !peripheral_is_connected {
-                                                        // Connect if we aren't already connected.
-                                                        if let Err(err) = peripheral.connect().await
-                                                        {
-                                                            eprintln!("Error connecting to peripheral, skipping: {}", err);
-                                                            continue;
-                                                        }
+                                            let mut should_connect = false;
+                                            if let Some(ref name_str) = name {
+                                                for prefix in predefined_prefixes {
+                                                    if name_str.contains(prefix) {
+                                                        println!("Peripheral Prefix {} found: {:?}, going to connect", prefix, name_str);
+                                                        should_connect = true;
+                                                        break;
                                                     }
-                                                    let peripheral_is_connected =
-                                                        peripheral.is_connected().await;
-                                                    println!(
-                                                        "Now connected ({:?}) to peripheral {:?}.",
-                                                        peripheral_is_connected, &name
-                                                    );
-
-                                                    peripheral.discover_services().await.expect("Error discovering services");
-
-                                                    let services_set = peripheral.services();
-                                                    let characteristics_set = peripheral.characteristics();
-
-                                                    let services: Vec<_> = services_set.into_iter().collect();
-                                                    let characteristics: Vec<_> = characteristics_set.into_iter().collect();
-
-
-                                                    let btle_object = BtleObject::new(
-                                                        peripheral_id.clone(),
-                                                        services.clone(),
-                                                        characteristics.clone(),
-                                                    );
-
-                                                    btle_storage_arc.add(peripheral_id.clone(), btle_object);
-
-                                                    for characteristic in
-                                                        &characteristics
-                                                    {
-                                                        println!(
-                                                            "Checking characteristic {:?}",
-                                                            characteristic
-                                                        );
-                                                            if characteristic
-                                                                .properties
-                                                                .contains(CharPropFlags::NOTIFY)
-                                                        {
-                                                            println!("Subscribing to characteristic {:?}", characteristic.uuid);
-                                                            peripheral
-                                                                .subscribe(&characteristic)
-                                                                .await;
-                                                            // Print the first 4 notifications received.
-                                                            let mut notification_stream =
-                                                                peripheral
-                                                                    .notifications()
-                                                                    .await;
-                                                            // Process while the BLE connection is not broken or stopped.
-                                                            while let Some(event) =
-                                                                notification_stream.as_mut().expect("Error receiving notifications").next().await
-                                                            {
-                                                                match event {
-
-                                                                    ValueNotification {uuid, value} => {
-                                                                        println!(
-                                        "Received data from {:?} [{:?}]: {:?}",
-                                        name, uuid, value
-                                    );
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-
-                                                    break;
                                                 }
+                                            }
+
+                                            if should_connect {
+                                                if !peripheral_is_connected {
+                                                    // Connect if we aren't already connected.
+                                                    if let Err(err) = peripheral.connect().await
+                                                    {
+                                                        eprintln!("Error connecting to peripheral, skipping: {}", err);
+                                                        continue;
+                                                    }
+                                                }
+                                                let peripheral_is_connected =
+                                                    peripheral.is_connected().await;
+                                                println!(
+                                                    "Now connected ({:?}) to peripheral {:?}.",
+                                                    peripheral_is_connected, &name
+                                                );
+
+                                                peripheral.discover_services().await.expect("Error discovering services");
+
+                                                let services: Vec<ServiceData> = peripheral.services().into_iter().map(|service| {
+                                                    let characteristics: Vec<CharacteristicData> = service.characteristics.into_iter().map(|characteristic| {
+                                                        CharacteristicData {
+                                                            uuid: characteristic.uuid.to_string(), // Convert Uuid to String
+                                                            properties: characteristic.properties.bits() as u32, // Convert CharPropFlags to u32
+                                                        }
+                                                    }).collect();
+                                                    ServiceData {
+                                                        uuid: service.uuid.to_string(), // Convert Uuid to String
+                                                        characteristics: characteristics,
+                                                    }
+                                                }).collect();
+
+                                                let peripheral_data = PeripheralData {
+                                                    id: id.to_string(), // Use the converted Uuid
+                                                    name: name.clone(),
+                                                    services: services,
+                                                };
+
+                                                let mut peripherals = GLOBAL_STATE.peripherals.lock().unwrap();
+                                                peripherals.insert(id.to_string(), peripheral_data);
                                             }
 
                                             send_message(
@@ -368,13 +306,6 @@ fn scan<'a>(env: Env<'a>) -> Result<Term<'a>, Atom> {
     Ok((atoms::ok(), pid).encode(env))
 }
 
-
-#[rustler::nif]
-fn connect<'a>(env: Env<'a>, uuid: String) -> Result<Term<'a>, String> {
-    println!("Connect to device {}", uuid);
-    Ok((atoms::ok(), "whatever").encode(env))
-}
-
 async fn get_central(manager: &Manager) -> Result<Adapter, Atom> {
     let adapters_result = manager.adapters().await;
     match adapters_result {
@@ -389,36 +320,54 @@ async fn get_central(manager: &Manager) -> Result<Adapter, Atom> {
     }
 }
 
-fn get_btle_object_by_uuid<'a>(env: Env<'a>, uuid: Term<'a>) -> Result<Term<'a>, Atom> {
-    let uuid_str: String = rustler::Decoder::decode(uuid).unwrap();
-
-    let btle_storage = &BTLE_STORAGE;
-
-    match btle_storage.get_by_uuid(&uuid_str) {
-        Some(btle_object) => {
-            // Return a success atom along with the peripheral ID.
-            Ok((atoms::ok(), btle_object.peripheral_id).encode(env))
+// Function to retrieve a peripheral by UUID
+#[rustler::nif]
+fn get_peripheral_by_uuid<'a>(env: Env<'a>, uuid_str: String) -> Result<Term<'a>, Error> {
+    let peripherals = GLOBAL_STATE.peripherals.lock().unwrap();
+    match peripherals.get(&uuid_str) {
+        Some(peripheral_data) => {
+            // Encode the PeripheralData struct for Elixir
+            Ok((atoms::ok(), peripheral_data.clone()).encode(env))
         }
-        None => Err(atoms::not_found()),
+        None => Err(Error::Atom("peripheral_not_found")),
     }
 }
 
-
 #[rustler::nif]
-fn add(a: i64, b: i64) -> i64 {
-    a * b
+fn get_service_by_uuid<'a>(env: Env<'a>, peripheral_uuid_str: String, service_uuid_str: String) -> Result<Term<'a>, Error> {
+    let peripherals = GLOBAL_STATE.peripherals.lock().unwrap();
+    match peripherals.get(&peripheral_uuid_str) {
+        Some(peripheral_data) => {
+            match peripheral_data.services.iter().find(|s| s.uuid == service_uuid_str) {
+                Some(service_data) => {
+                    Ok((atoms::ok(), service_data.clone()).encode(env))
+                }
+                None => Err(Error::Atom("service_not_found")),
+            }
+        }
+        None => Err(Error::Atom("peripheral_not_found")),
+    }
 }
 
 #[rustler::nif]
-fn get_map() -> HashMap<String, HashMap<String, String>> {
-    let mut map = HashMap::new();
-    let mut inner_map = HashMap::new();
-    inner_map.insert("inner_key1".to_string(), "inner_value1".to_string());
-    inner_map.insert("inner_key2".to_string(), "inner_value2".to_string());
-    map.insert("outer_key1".to_string(), inner_map);
-    map
+fn get_characteristic_by_uuid<'a>(env: Env<'a>, peripheral_uuid_str: String, service_uuid_str: String, characteristic_uuid_str: String) -> Result<Term<'a>, Error> {
+    let peripherals = GLOBAL_STATE.peripherals.lock().unwrap();
+    match peripherals.get(&peripheral_uuid_str) {
+        Some(peripheral_data) => {
+            match peripheral_data.services.iter().find(|s| s.uuid == service_uuid_str) {
+                Some(service_data) => {
+                    match service_data.characteristics.iter().find(|c| c.uuid == characteristic_uuid_str) {
+                        Some(characteristic_data) => {
+                            Ok((atoms::ok(), characteristic_data.clone()).encode(env))
+                        }
+                        None => Err(Error::Atom("characteristic_not_found")),
+                    }
+                }
+                None => Err(Error::Atom("service_not_found")),
+            }
+        }
+        None => Err(Error::Atom("peripheral_not_found")),
+    }
 }
 
-// [add, get_map, init, scan]
 rustler::init!("Elixir.RustlerBtleplug.Native");
-// , [add, get_map, init, scan]

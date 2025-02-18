@@ -18,5 +18,6 @@ defmodule RustlerBtleplug.Native do
   def add(_a, _b), do: error()
   def get_map(), do: error()
   def scan(), do: error()
+  def connect(_uuid), do: error()
   defp error, do: :erlang.nif_error(:nif_not_loaded)
 end

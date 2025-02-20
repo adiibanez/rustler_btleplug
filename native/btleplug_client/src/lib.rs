@@ -23,14 +23,11 @@ use rustler::{Env, Error as RustlerError, Term};
 
 fn on_load(env: Env, _info: Term) -> bool {
     println!("[Rust] Initializing Rust NIF module...");
-    //rustler::resource!(peripheral::PeripheralRef, env);
-    //rustler::resource!(central_manager::CentralRef, env);
     println!("[Rust] Rust NIF module loaded successfully.");
     true
 }
 
 #[rustler::nif]
-// pub fn connect_peripheral<'a>(env: Env<'a>, central: ResourceArc<CentralManagerType>, uuid: String) -> Result<ResourceArc<PeripheralResourceType>, RustlerError> {
 pub fn test_string<'a>(env: Env<'a>, uuid: Term<'a>) -> Result<Term<'a>, RustlerError> {
     println!("[Rust] Test string: {:?}", uuid);
     Ok(uuid)

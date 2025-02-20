@@ -2,9 +2,9 @@ use crate::atoms;
 use futures::StreamExt;
 use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, ResourceArc, Term};
 use std::sync::{Arc, Mutex};
-use tokio::spawn; // ✅ Fix: Import StreamExt
+use tokio::spawn;
 
-use btleplug::api::Peripheral as _; // ✅ Fix: Import Peripheral trait methods
+use btleplug::api::Peripheral as _; 
 use btleplug::platform::Peripheral;
 
 pub fn load(env: Env) -> bool {
@@ -71,7 +71,7 @@ pub fn subscribe(
             peripheral_state.peripheral.clone()
         };
 
-        let characteristics = peripheral.characteristics(); // ✅ Fix: Removed `.await`
+        let characteristics = peripheral.characteristics();
 
         let characteristic = characteristics
             .iter()
@@ -95,7 +95,6 @@ pub fn subscribe(
             };
 
             while let Some(notification) = notifications.next().await {
-                // ✅ Fix: `.next()` now works
                 println!("[Rust] Received Notification: {:?}", notification.value);
             }
         } else {

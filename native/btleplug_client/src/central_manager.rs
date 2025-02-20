@@ -10,9 +10,9 @@ use btleplug::api::{
 use btleplug::platform::{Adapter, Manager};
 use futures::StreamExt;
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
 use tokio::spawn;
 use tokio::sync::mpsc;
+use tokio::sync::Mutex;
 use uuid::Uuid;
 
 use std::sync::Arc;
@@ -52,7 +52,6 @@ impl CentralManagerState {
 
 #[rustler::nif]
 pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError> {
-// pub fn create_central(env: Env) -> Result<CentralRef, RustlerError> {
     println!("[Rust] Creating CentralManager...");
 
     let runtime = tokio::runtime::Runtime::new().map_err(|e| {
@@ -83,11 +82,13 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
 
     println!("[Rust] - Manager exists: true");
     println!("[Rust] - Adapter exists: {:?}", adapter_info);
-    println!("[Rust] - Event sender exists: {}", !event_sender.is_closed());
+    println!(
+        "[Rust] - Event sender exists: {}",
+        !event_sender.is_closed()
+    );
 
     let state = CentralManagerState::new(env.pid(), manager, adapter, event_sender);
-    let state_arc = Arc::new(Mutex::new(state)); // ✅ Use async Mutex
-
+    let state_arc = Arc::new(Mutex::new(state));
     println!("[Rust] Before creating ResourceArc ...");
 
     let resource = ResourceArc::new(CentralRef(state_arc.clone()));
@@ -95,13 +96,13 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
 
     println!("[Rust] After creating ResourceArc ...");
 
-    let event_receiver_arc = Arc::new(Mutex::new(event_receiver)); // ✅ Use async Mutex
+    let event_receiver_arc = Arc::new(Mutex::new(event_receiver)); 
 
     let event_receiver_clone = event_receiver_arc.clone();
     tokio::spawn(async move {
         println!("[Rust] Inside tokio::spawn ...");
 
-        let mut event_receiver = event_receiver_clone.lock().await; // ✅ Use async lock
+        let mut event_receiver = event_receiver_clone.lock().await;
 
         while let Some(event) = event_receiver.recv().await {
             match event {
@@ -123,16 +124,18 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     Ok(resource)
 }
 
-
 #[rustler::nif]
-pub fn start_scan(env: Env, resource: ResourceArc<CentralRef>) -> Result<ResourceArc<CentralRef>, RustlerError> { // ✅ Fix return type
+pub fn start_scan(
+    env: Env,
+    resource: ResourceArc<CentralRef>,
+) -> Result<ResourceArc<CentralRef>, RustlerError> {
     println!("[Rust] Starting BLE scan...");
 
     let resource_arc = resource.0.clone();
 
     tokio::spawn(async move {
         let adapter = {
-            let central_state = resource_arc.lock().await; // ✅ Fix async lock
+            let central_state = resource_arc.lock().await; 
             central_state.adapter.clone()
         };
 
@@ -159,7 +162,7 @@ pub fn start_scan(env: Env, resource: ResourceArc<CentralRef>) -> Result<Resourc
                             let peripheral_is_connected =
                                 peripheral.is_connected().await.unwrap_or(false);
                             let properties = peripheral.properties().await.ok();
-                            let name = properties.and_then(|p| p.as_ref()?.local_name.clone()); // ✅ Fix unwrap
+                            let name = properties.and_then(|p| p.as_ref()?.local_name.clone()); 
 
                             let predefined_prefixes =
                                 vec!["PressureSensor", "Arduino", "HumiditySensor"];

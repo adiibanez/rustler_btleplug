@@ -23,7 +23,6 @@ pub fn load(env: Env) -> bool {
     true
 }
 
-
 pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>);
 
 pub struct CentralManagerState {
@@ -150,7 +149,7 @@ pub fn find_peripheral(
     println!("[Rust] Finding Peripheral: {}", uuid);
 
     // Lock the central manager state
-    let mut state = resource.0.lock().map_err(|_| {
+    let state = resource.0.lock().map_err(|_| {
         RustlerError::Term(Box::new("Failed to lock CentralManagerState".to_string()))
     })?;
 

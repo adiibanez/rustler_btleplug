@@ -110,6 +110,55 @@ pub fn find_peripheral(
     )))
 }
 
+// #[rustler::nif]
+// pub fn start_scan(
+//     env: Env,
+//     resource: ResourceArc<CentralRef>,
+// ) -> Result<ResourceArc<CentralRef>, RustlerError> {
+//     println!("[Rust] Starting BLE scan...");
+
+//     let resource_arc = resource.0.clone();
+//     let mut central_state = resource_arc.lock().unwrap();
+
+//     // Create a Tokio runtime to run async code synchronously
+//     let runtime = tokio::runtime::Runtime::new()
+//         .map_err(|e| RustlerError::Term(Box::new(format!("Runtime error: {}", e))))?;
+
+//     // Run async code synchronously
+//     runtime
+//         .block_on(central_state.adapter.start_scan(ScanFilter::default()))
+//         .map_err(|e| {
+//             RustlerError::Term(Box::new(format!("[Rust] Failed to start scan: {:?}", e)))
+//         })?;
+
+    
+//     spawn(async move {            
+
+//         let mut events = central_state.adapter.events();
+
+//     while let Some(event) = events.next().await {
+//         println!("[Rust] BLE Event: {:?}", event);
+//         match event {
+//             CentralEvent::DeviceDiscovered(peripheral_id) => {
+//                 println!("[Rust] Device Discovered: {:?}", peripheral_id);
+//                 // Handle device discovered event
+//             }
+//             CentralEvent::DeviceUpdated(peripheral_id) => {
+//                 // Handle device updated event
+//                 println!("[Rust] Device Updated: {:?}", peripheral_id);
+//             }
+//             CentralEvent::DeviceConnected(peripheral_id) => {
+//                 // Handle device connected event
+//                 println!("[Rust] Device Connected: {:?}", peripheral_id);
+//             }
+//             _ => {}
+//         }
+//     }});
+//     Ok(resource)
+// }
+
+
+
 #[rustler::nif]
 pub fn start_scan(
     env: Env,
@@ -118,47 +167,50 @@ pub fn start_scan(
     println!("[Rust] Starting BLE scan...");
 
     let resource_arc = resource.0.clone();
-    let mut central_state = resource_arc.lock().unwrap();
-
-
-
-    // Create a Tokio runtime to run async code synchronously
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|e| RustlerError::Term(Box::new(format!("Runtime error: {}", e))))?;
-
-    // Run async code synchronously
-    let adapter = runtime
-        .block_on(central_state.adapter)
-        .ok_or_else(|| RustlerError::Term(Box::new("No available adapter")))?;
 
     tokio::spawn(async move {
-        // Start scanning
-        if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
-            println!("[Rust] Failed to start scan: {:?}", e);
-            return;
-        }
+        let central_arc = resource_arc.clone();
+        // Lock the central manager state
 
-        println!("[Rust] Scan started. Listening for events...");
-        let mut events = adapter.events().await.expect("Failed to get event stream");
+        let result = central_arc.lock();
+        match result {
+            Ok(central_state) => {
+               let adapter = central_state.adapter.clone(); //clone
+                drop(central_state);
 
-        while let Some(event) = events.next().await {
-            println!("[Rust] BLE Event: {:?}", event);
-            match event {
-                CentralEvent::DeviceDiscovered(peripheral_id) => {
-                    println!("[Rust] Device Discovered: {:?}", peripheral_id);
-                    // Handle device discovered event
-                }
-                CentralEvent::DeviceUpdated(peripheral_id) => {
-                    // Handle device updated event
-                    println!("[Rust] Device Updated: {:?}", peripheral_id);
-                }
-                CentralEvent::DeviceConnected(peripheral_id) => {
-                    // Handle device connected event
-                    println!("[Rust] Device Connected: {:?}", peripheral_id);
-                }
-                _ => {}
+                 // Start scanning
+                 if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
+                     println!("[Rust] Failed to start scan: {:?}", e);
+                     return;
+                 }
+
+                 println!("[Rust] Scan started. Listening for events...");
+                 let mut events = adapter.events().await.expect("Failed to get event stream");
+
+                while let Some(event) = events.next().await {
+                     println!("[Rust] BLE Event: {:?}", event);
+                     match event {
+                         CentralEvent::DeviceDiscovered(peripheral_id) => {
+                             println!("[Rust] Device Discovered: {:?}", peripheral_id);
+                             // Handle device discovered event
+                         }
+                         CentralEvent::DeviceUpdated(peripheral_id) => {
+                             // Handle device updated event
+                             println!("[Rust] Device Updated: {:?}", peripheral_id);
+                         }
+                         CentralEvent::DeviceConnected(peripheral_id) => {
+                             // Handle device connected event
+                             println!("[Rust] Device Connected: {:?}", peripheral_id);
+                         }
+                         _ => {}
+                     }
+                 }
             }
-        }
+            Err(_) => {
+                 println!("[Rust] Unable to lock ");
+                 return;
+            }
+         };
     });
 
     Ok(resource)

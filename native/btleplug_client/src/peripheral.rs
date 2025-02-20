@@ -65,10 +65,8 @@ pub fn subscribe(
     let resource_arc = resource.0.clone();
 
     spawn(async move {
-
         let mut peripheral_state = resource_arc.lock().unwrap();
         let peripheral = peripheral_state.peripheral;
-
 
         let characteristics = peripheral
             .characteristics()

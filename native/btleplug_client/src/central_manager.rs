@@ -2,7 +2,6 @@ use crate::atoms;
 use crate::peripheral::PeripheralRef;
 use crate::peripheral::PeripheralState;
 use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, ResourceArc, Term};
-//use std::sync::{Arc, Mutex};
 
 use btleplug::api::{
     bleuuid::BleUuid, Central, CentralEvent, CharPropFlags, Characteristic, Manager as _,
@@ -17,13 +16,16 @@ use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use std::sync::Arc;
+// use std::sync::Mutex;
 
 pub fn load(env: Env) -> bool {
-    rustler::resource!(CentralRef, env); // ✅ Only register `CentralRef`
+    rustler::resource!(CentralRef, env);
     true
 }
 
-pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>);
+//#[derive(NifRecord)]
+//#[tag = "central"]
+pub struct CentralRef(Arc<Mutex<CentralManagerState>>);
 
 pub struct CentralManagerState {
     pub pid: LocalPid,
@@ -50,6 +52,7 @@ impl CentralManagerState {
 
 #[rustler::nif]
 pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError> {
+// pub fn create_central(env: Env) -> Result<CentralRef, RustlerError> {
     println!("[Rust] Creating CentralManager...");
 
     let runtime = tokio::runtime::Runtime::new().map_err(|e| {
@@ -83,15 +86,16 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     println!("[Rust] - Event sender exists: {}", !event_sender.is_closed());
 
     let state = CentralManagerState::new(env.pid(), manager, adapter, event_sender);
-    let state_arc = Arc::new(tokio::sync::Mutex::new(state)); // ✅ Use async Mutex
+    let state_arc = Arc::new(Mutex::new(state)); // ✅ Use async Mutex
 
     println!("[Rust] Before creating ResourceArc ...");
 
     let resource = ResourceArc::new(CentralRef(state_arc.clone()));
+    // let resource = CentralRef(state_arc.clone());
 
     println!("[Rust] After creating ResourceArc ...");
 
-    let event_receiver_arc = Arc::new(tokio::sync::Mutex::new(event_receiver)); // ✅ Use async Mutex
+    let event_receiver_arc = Arc::new(Mutex::new(event_receiver)); // ✅ Use async Mutex
 
     let event_receiver_clone = event_receiver_arc.clone();
     tokio::spawn(async move {

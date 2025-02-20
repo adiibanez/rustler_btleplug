@@ -17,6 +17,13 @@ use tokio::sync::mpsc;
 
 use uuid::Uuid;
 
+pub fn load(env: Env) -> bool {
+    rustler::resource!(CentralRef, env);
+    rustler::resource!(CentralManagerState, env);
+    true
+}
+
+
 pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>);
 
 pub struct CentralManagerState {
@@ -40,11 +47,6 @@ impl CentralManagerState {
             event_sender,
         }
     }
-}
-
-pub fn load(env: Env) -> bool {
-    rustler::resource!(CentralRef, env);
-    true
 }
 
 #[rustler::nif]
@@ -86,47 +88,44 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     // Create the channel here.
     let (event_sender, mut event_receiver) = mpsc::channel::<CentralEvent>(100);
 
-    // let state = CentralManagerState::new(env.pid(), manager, adapter, runtime, event_sender);
-    // let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
-
     let state = CentralManagerState::new(env.pid(), manager, adapter, event_sender);
     let state_arc = Arc::new(Mutex::new(state)); // Wrap in Arc *before* moving
 
-    println!("[Rust] Before panicking ...");
+    println!("[Rust] Before creating ResourceArc ...");
 
     let resource = ResourceArc::new(CentralRef(state_arc.clone())); // Clone the Arc
-    
-    // println!("[Rust] CentralManagerState created with PID: {:?}", env.pid());
 
-    // let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
-    println!("[Rust] After panicking ...");
+    println!("[Rust] After creating ResourceArc ...");
     let resource_clone = resource.clone(); // ✅ Clone before spawning
-    
 
     // Process the central events by reading from the new channel
     tokio::spawn(async move {
-        let central_arc = match resource_clone.0.lock() {
-            Ok(c) => ResourceArc::clone(&resource_clone),
-            Err(_) => {
-                println!("[Rust] Failed to lock CentralManagerState.");
-                return;
-            }
-        };
+        println!("[Rust] Inside tokio::spawn ...");
+
 
         while let Some(event) = event_receiver.recv().await {
-            match event {
-                CentralEvent::DeviceDiscovered(peripheral_id) => {
-                    println!("[Rust] Device Discovered: {:?}", peripheral_id);
+            // *IMPORTANT*: Minimize the time you hold the lock.
+            // Extract the data you need *before* the await.
+            let peripheral_id = match event {
+                CentralEvent::DeviceDiscovered(id) => {
+                    println!("[Rust] Device Discovered: {:?}", id);
+                    Some(id)
                 }
-                CentralEvent::DeviceUpdated(peripheral_id) => {
-                    println!("[Rust] Device Updated: {:?}", peripheral_id);
+                CentralEvent::DeviceUpdated(id) => {
+                    println!("[Rust] Device Updated: {:?}", id);
+                    Some(id)
                 }
-                CentralEvent::DeviceConnected(peripheral_id) => {
-                    println!("[Rust] Device Connected: {:?}", peripheral_id);
+                CentralEvent::DeviceConnected(id) => {
+                    println!("[Rust] Device Connected: {:?}", id);
+                    Some(id)
                 }
-                _ => {}
-            }
+                _ => None,
+            };
+
+            // Drop the lock *immediately* after extracting the data.
+            // Now you can use `peripheral_id` safely across the `.await` point.
         }
+        println!("[Rust] Event receiver closed.");
     });
 
     Ok(resource)

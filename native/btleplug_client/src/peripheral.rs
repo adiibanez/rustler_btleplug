@@ -7,6 +7,12 @@ use futures::StreamExt; // ✅ Fix: Import StreamExt
 use btleplug::api::Peripheral as _; // ✅ Fix: Import Peripheral trait methods
 use btleplug::platform::Peripheral;
 
+pub fn load(env: Env) -> bool {
+    rustler::resource!(PeripheralRef, env);
+    rustler::resource!(PeripheralState, env);
+    true
+}
+
 pub struct PeripheralRef(pub(crate) Arc<Mutex<PeripheralState>>);
 
 pub struct PeripheralState {
@@ -26,10 +32,6 @@ impl Drop for PeripheralState {
     }
 }
 
-pub fn load(env: Env) -> bool {
-    rustler::resource!(PeripheralRef, env);
-    true
-}
 
 #[rustler::nif]
 pub fn connect(

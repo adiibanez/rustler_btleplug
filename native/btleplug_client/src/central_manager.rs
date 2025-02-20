@@ -23,7 +23,6 @@ pub struct CentralManagerState {
     pub pid: LocalPid,
     pub adapter: Adapter,
     pub manager: Manager,
-    pub runtime: Runtime,
     pub event_sender: mpsc::Sender<CentralEvent>, // Channel to send events
 }
 
@@ -32,14 +31,12 @@ impl CentralManagerState {
         pid: LocalPid,
         manager: Manager,
         adapter: Adapter,
-        runtime: Runtime,
         event_sender: mpsc::Sender<CentralEvent>,
     ) -> Self {
         CentralManagerState {
             pid,
             manager,
             adapter,
-            runtime,
             event_sender,
         }
     }
@@ -92,14 +89,12 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     // let state = CentralManagerState::new(env.pid(), manager, adapter, runtime, event_sender);
     // let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
 
-    let state = CentralManagerState::new(env.pid(), manager, adapter, runtime, event_sender);
+    let state = CentralManagerState::new(env.pid(), manager, adapter, event_sender);
     let state_arc = Arc::new(Mutex::new(state)); // Wrap in Arc *before* moving
 
     println!("[Rust] Before panicking ...");
 
     let resource = ResourceArc::new(CentralRef(state_arc.clone())); // Clone the Arc
-
-
     
     // println!("[Rust] CentralManagerState created with PID: {:?}", env.pid());
 
@@ -143,6 +138,16 @@ pub fn find_peripheral(
     resource: ResourceArc<CentralRef>,
     uuid: String,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
+
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            println!("[Rust] Runtime creation failed: {:?}", e);
+            return Err(RustlerError::Term(Box::new(format!("Runtime error: {}", e))));
+        }
+    };
+
+
     println!("[Rust] Finding Peripheral: {}", uuid);
 
     // Lock the central manager state
@@ -151,8 +156,7 @@ pub fn find_peripheral(
     })?;
 
     // Ensure `adapter` exists in `state`
-    let peripherals = state
-        .runtime
+    let peripherals = runtime
         .block_on(state.adapter.peripherals())
         .map_err(|e| RustlerError::Term(Box::new(format!("Manager error: {}", e))))?;
 

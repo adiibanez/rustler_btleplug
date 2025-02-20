@@ -1,15 +1,14 @@
 // use crate::elixir_bridge::ElixirBridge;
 use crate::atoms;
 
-
 // use rustler::types::pid::Pid;
-use rustler::{Atom, Encoder, Env, ResourceArc, Term, LocalPid, Error as RustlerError};
+use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, ResourceArc, Term};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc::Sender;
 
+use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral, ScanFilter};
 use btleplug::platform::{Adapter, Manager};
-use btleplug::api::{Central, ScanFilter, Peripheral, CentralEvent, Manager as _};
 use tokio::runtime::Runtime;
 use tokio::spawn;
 
@@ -19,7 +18,6 @@ pub struct PeripheralState {
     // pub config: Config,
     pub pid: LocalPid,
     pub peripheral: Peripheral,
-    
     // apis: HashMap<String, Arc<API>>,
     // media_engines: HashMap<String, MediaEngine>,
     // peer_connections: HashMap<String, Sender<peer_connection::Msg>>,
@@ -148,13 +146,15 @@ pub fn load(env: Env) -> bool {
     true
 }
 
-
 #[rustler::nif]
 pub fn connect(
     env: Env,
-    peripheral: ResourceArc<PeripheralRef>
+    peripheral: ResourceArc<PeripheralRef>,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
-    println!("[Rust] Connecting to Peripheral: {:?}", peripheral.peripheral.id());
+    println!(
+        "[Rust] Connecting to Peripheral: {:?}",
+        peripheral.peripheral.id()
+    );
 
     let peripheral_clone = peripheral.peripheral.clone();
 
@@ -167,7 +167,6 @@ pub fn connect(
     });
 
     (atoms::ok(), peripheral).encode(env)
-    
 }
 
 #[rustler::nif]
@@ -177,11 +176,15 @@ pub fn subscribe(
     characteristic_uuid: String,
 ) -> ResourceArc<PeripheralRef> {
     let peripheral_clone = peripheral.0.lock(); //peripheral.peripheral.clone();
-    // let bridge = ElixirBridge::new(env);
+                                                // let bridge = ElixirBridge::new(env);
 
     spawn(async move {
-        let characteristics = peripheral_clone.characteristics().await.expect("Failed to get characteristics");
-        let characteristic = characteristics.iter()
+        let characteristics = peripheral_clone
+            .characteristics()
+            .await
+            .expect("Failed to get characteristics");
+        let characteristic = characteristics
+            .iter()
             .find(|c| c.uuid.to_string() == characteristic_uuid)
             .cloned();
 
@@ -196,7 +199,9 @@ pub fn subscribe(
             let mut notifications = peripheral_clone.notifications().await.unwrap();
             while let Some(notification) = notifications.next().await {
                 //env.send_message(("btleplug_notification".encode(env), notification.value));
-                env.send_and_clear(&peripheral.pid, |env| ("btleplug_notification".encode(env), notification.value).encode(env));
+                env.send_and_clear(&peripheral.pid, |env| {
+                    ("btleplug_notification".encode(env), notification.value).encode(env)
+                });
             }
         } else {
             println!("[Rust] Characteristic not found: {}", characteristic_uuid);

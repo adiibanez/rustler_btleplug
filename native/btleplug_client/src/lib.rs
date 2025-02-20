@@ -8,7 +8,6 @@
 
 mod atoms;
 mod central_manager;
-mod elixir_bridge;
 mod peripheral;
 
 #[macro_use]

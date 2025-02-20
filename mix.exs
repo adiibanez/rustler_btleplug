@@ -15,7 +15,7 @@ defmodule RustlerBtleplug.MixProject do
   # Run "mix help compile.app" to learn about applications.
   def application do
     [
-      extra_applications: [:logger]
+      extra_applications: [:logger, :rustler]
     ]
   end
 
@@ -28,12 +28,12 @@ defmodule RustlerBtleplug.MixProject do
     ]
   end
 
-#  defp aliases do
-#    [
-#      fmt: [
-#        "format",
-#        "cmd cargo fmt --manifest-path native/btleplug_client/Cargo.toml"
-#      ]
-#    ]
-#  end
+  #  defp aliases do
+  #    [
+  #      fmt: [
+  #        "format",
+  #        "cmd cargo fmt --manifest-path native/btleplug_client/Cargo.toml"
+  #      ]
+  #    ]
+  #  end
 end

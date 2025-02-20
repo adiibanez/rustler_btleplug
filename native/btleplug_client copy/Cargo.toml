@@ -15,9 +15,8 @@ crate-type = ["cdylib"]
 
 [dependencies]
 btleplug = { version = "0.11.7", features = ["serde"] }
-#bluster = "0.2.0"
+bluster = "0.2.0"
 rustler = "0.36.1"
-rustler_codegen = "*"
 bufstream = "0.1.4"
 log = "0.4.22"
 env_logger = "0.11"

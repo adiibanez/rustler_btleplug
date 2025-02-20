@@ -1,3 +1,7 @@
+https://www.monkeyvault.net/cryptography-elixir-rust/
+
+
+
 // https://stackoverflow.com/questions/58671430/how-to-allow-dead-code-and-unused-imports-for-dev-builds-only
 https://stackoverflow.com/questions/19605132/is-it-possible-to-use-global-variables-in-rust
 

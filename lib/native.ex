@@ -1,23 +1,27 @@
 defmodule RustlerBtleplug.Native do
   use Rustler, otp_app: :rustler_btleplug, crate: :btleplug_client
 
-  # @enforce_keys [:native]
-  # defstruct [:native]
+  @type central() :: reference()
+  @type peripheral() :: reference()
+  @type uuid() :: String.t()
+  @type mac() :: String.t()
 
-  # @opaque t() :: String.t()
+  @spec init(map()) :: {:ok, ble_resource()} | {:error, term()}
+  def init(_opts \\ %{}), do: error()
 
-  @type init_options() :: %{
-          optional(:some_option) => String.t()
-        }
+  def create_central(), do: error()
+  @spec start_scan(central()) :: {:ok, ble_resource()} | {:error, term()}
+  def start_scan(_central), do: error()
 
-  def init(opts \\ %{})
-  def init(%{} = opts), do: __init__(opts)
-  def init(_), do: {:error, :invalid_options}
+  def add_peripheral(_central, _mac), do: error()
+  def get_peripheral(_central, _uuid), do: error()
+  def find_peripheral(_central, _uuid), do: error()
 
-  def __init__(_opts), do: error()
-  def add(_a, _b), do: error()
-  def get_map(), do: error()
-  def scan(), do: error()
-  def connect(_uuid), do: error()
+  @spec connect(peripheral(), uuid()) :: {:ok, peripheral()} | {:error, term()}
+  def connect(_peripheral, _uuid), do: error()
+  def subscribe(_peripheral, _characteristics), do: error()
+
+  def test_string(_uuid), do: error()
+
   defp error, do: :erlang.nif_error(:nif_not_loaded)
 end

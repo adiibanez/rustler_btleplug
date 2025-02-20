@@ -6,22 +6,29 @@ defmodule RustlerBtleplug.Native do
   @type uuid() :: String.t()
   @type mac() :: String.t()
 
-  @spec init(map()) :: {:ok, ble_resource()} | {:error, term()}
+  @spec init(map()) :: {:ok, central()} | {:error, term()}
   def init(_opts \\ %{}), do: error()
 
+  @spec create_central() :: {:ok, central()} | {:error, term()}
   def create_central(), do: error()
-  @spec start_scan(central()) :: {:ok, ble_resource()} | {:error, term()}
+  @spec start_scan(central()) :: {:ok, central()} | {:error, term()}
   def start_scan(_central), do: error()
 
-  def add_peripheral(_central, _mac), do: error()
-  def get_peripheral(_central, _uuid), do: error()
+  #def add_peripheral(_central, _mac), do: error()
+
+  # get peripheral from known peripherals, eg. earlier scan
+  # def get_peripheral(_central, _uuid), do: error()
+
+  # scan and find peripheral
+  @spec find_peripheral(central(), uuid()) :: {:ok, peripheral()} | {:error, term()}
   def find_peripheral(_central, _uuid), do: error()
 
-  @spec connect(peripheral(), uuid()) :: {:ok, peripheral()} | {:error, term()}
-  def connect(_peripheral, _uuid), do: error()
+  @spec connect(peripheral()) :: {:ok, peripheral()} | {:error, term()}
+  def connect(_peripheral), do: error()
   def subscribe(_peripheral, _characteristics), do: error()
 
-  def test_string(_uuid), do: error()
+  @spec test_string(String.t()) :: {:ok, String.t()} | {:error, term()}
+  def test_string(_string), do: error()
 
   defp error, do: :erlang.nif_error(:nif_not_loaded)
 end

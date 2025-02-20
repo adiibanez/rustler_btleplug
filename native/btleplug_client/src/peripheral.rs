@@ -1,13 +1,11 @@
 use crate::atoms;
 use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, ResourceArc, Term};
-use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc::Sender;
-
-use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral, ScanFilter};
-use btleplug::platform::{Adapter, Manager};
-use tokio::runtime::Runtime;
 use tokio::spawn;
+use futures::StreamExt; // ✅ Fix: Import StreamExt
+
+use btleplug::api::Peripheral as _; // ✅ Fix: Import Peripheral trait methods
+use btleplug::platform::Peripheral;
 
 pub struct PeripheralRef(pub(crate) Arc<Mutex<PeripheralState>>);
 
@@ -41,8 +39,10 @@ pub fn connect(
     let resource_arc = resource.0.clone();
 
     spawn(async move {
-        let mut peripheral_state = resource_arc.lock().unwrap();
-        let peripheral = peripheral_state.peripheral;
+        let peripheral = {
+            let peripheral_state = resource_arc.lock().unwrap();
+            peripheral_state.peripheral.clone()
+        };
 
         println!("[Rust] Connecting to Peripheral: {:?}", peripheral.id());
 
@@ -65,13 +65,13 @@ pub fn subscribe(
     let resource_arc = resource.0.clone();
 
     spawn(async move {
-        let mut peripheral_state = resource_arc.lock().unwrap();
-        let peripheral = peripheral_state.peripheral;
+        let peripheral = {
+            let peripheral_state = resource_arc.lock().unwrap();
+            peripheral_state.peripheral.clone()
+        };
 
-        let characteristics = peripheral
-            .characteristics()
-            .await
-            .expect("Failed to get characteristics");
+        let characteristics = peripheral.characteristics(); // ✅ Fix: Removed `.await`
+
         let characteristic = characteristics
             .iter()
             .find(|c| c.uuid.to_string() == characteristic_uuid)
@@ -85,12 +85,16 @@ pub fn subscribe(
                 return;
             }
 
-            let mut notifications = peripheral.notifications().await.unwrap();
-            while let Some(notification) = notifications.next().await {
-                //env.send_message(("btleplug_notification".encode(env), notification.value));
-                /*env.send_and_clear(&peripheral.pid, |env| {
-                    ("btleplug_notification".encode(env), notification.value).encode(env)
-                });*/
+            let mut notifications = match peripheral.notifications().await {
+                Ok(n) => n,
+                Err(_) => {
+                    println!("[Rust] Failed to get notifications");
+                    return;
+                }
+            };
+
+            while let Some(notification) = notifications.next().await { // ✅ Fix: `.next()` now works
+                println!("[Rust] Received Notification: {:?}", notification.value);
             }
         } else {
             println!("[Rust] Characteristic not found: {}", characteristic_uuid);

@@ -4,12 +4,18 @@ use crate::peripheral::PeripheralState;
 use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, ResourceArc, Term};
 use std::sync::{Arc, Mutex};
 
-use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral, ScanFilter};
+use btleplug::api::{
+    bleuuid::BleUuid, Central, CentralEvent, CharPropFlags, Characteristic, Manager as _,
+    Peripheral, ScanFilter, Service, ValueNotification,
+};
+//use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral, ScanFilter, Service};
 use btleplug::platform::{Adapter, Manager};
 use futures::StreamExt;
 use tokio::runtime::Runtime;
 use tokio::spawn;
 use tokio::sync::mpsc;
+
+use uuid::Uuid;
 
 pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>);
 
@@ -48,29 +54,61 @@ pub fn load(env: Env) -> bool {
 pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError> {
     println!("[Rust] Creating CentralManager...");
 
-    let runtime = tokio::runtime::Runtime::new()
-        .map_err(|e| RustlerError::Term(Box::new(format!("Runtime error: {}", e))))?;
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            println!("[Rust] Runtime creation failed: {:?}", e);
+            return Err(RustlerError::Term(Box::new(format!("Runtime error: {}", e))));
+        }
+    };
 
-    let manager = runtime.block_on(Manager::new())
-        .map_err(|e| RustlerError::Term(Box::new(format!("Manager error: {}", e))))?;
+    let manager = match runtime.block_on(Manager::new()) {
+        Ok(m) => m,
+        Err(e) => {
+            println!("[Rust] Manager creation failed: {:?}", e);
+            return Err(RustlerError::Term(Box::new(format!("Manager error: {}", e))));
+        }
+    };
 
-    let adapters = runtime.block_on(manager.adapters())
-        .map_err(|e| RustlerError::Term(Box::new(format!("Adapter error: {}", e))))?;
+    let adapters = match runtime.block_on(manager.adapters()) {
+        Ok(a) => a,
+        Err(e) => {
+            println!("[Rust] Failed to get adapters: {:?}", e);
+            return Err(RustlerError::Term(Box::new(format!("Adapter error: {}", e))));
+        }
+    };
 
-    let adapter = adapters.into_iter().next()
-        .ok_or_else(|| RustlerError::Term(Box::new("No available adapter")))?;
+    let adapter = match adapters.into_iter().next() {
+        Some(a) => a,
+        None => {
+            println!("[Rust] No available BLE adapter found.");
+            return Err(RustlerError::Term(Box::new("No available adapter")));
+        }
+    };
 
-    //Create the channel here.
-    let (event_sender, mut event_receiver) = mpsc::channel::<CentralEvent>(100);  // Adjust buffer size as needed
+    // Create the channel here.
+    let (event_sender, mut event_receiver) = mpsc::channel::<CentralEvent>(100);
 
     let state = CentralManagerState::new(env.pid(), manager, adapter, runtime, event_sender);
     let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
+    println!("[Rust] Here ...");
+    // println!("[Rust] CentralManagerState created with PID: {:?}", env.pid());
 
-    let resource_clone = resource.clone();
-    //Process the central events by reading from the new channel
+    let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
+    println!("[Rust] Here 2 ...");
+    let resource_clone = resource.clone(); // ✅ Clone before spawning
+    
+
+    // Process the central events by reading from the new channel
     tokio::spawn(async move {
-       let central_arc = resource_clone.0.clone();
-       
+        let central_arc = match resource_clone.0.lock() {
+            Ok(c) => ResourceArc::clone(&resource_clone),
+            Err(_) => {
+                println!("[Rust] Failed to lock CentralManagerState.");
+                return;
+            }
+        };
+
         while let Some(event) = event_receiver.recv().await {
             match event {
                 CentralEvent::DeviceDiscovered(peripheral_id) => {
@@ -104,7 +142,9 @@ pub fn find_peripheral(
     })?;
 
     // Ensure `adapter` exists in `state`
-    let peripherals = state.runtime.block_on(state.adapter.peripherals())
+    let peripherals = state
+        .runtime
+        .block_on(state.adapter.peripherals())
         .map_err(|e| RustlerError::Term(Box::new(format!("Manager error: {}", e))))?;
 
     println!("[Rust] Peripherals retrieved successfully.");
@@ -120,49 +160,108 @@ pub fn find_peripheral(
         }
     }
 
-    Err(RustlerError::Term(Box::new("Peripheral not found".to_string())))
+    Err(RustlerError::Term(Box::new(
+        "Peripheral not found".to_string(),
+    )))
 }
-
 
 #[rustler::nif]
 pub fn start_scan(
     env: Env,
     resource: ResourceArc<CentralRef>,
-) -> Result<Atom, RustlerError> {
+) -> Result<ResourceArc<CentralRef>, RustlerError> {
     println!("[Rust] Starting BLE scan...");
 
     let resource_arc = resource.0.clone();
 
     tokio::spawn(async move {
-        let central_arc = resource_arc.clone();
+        // Lock only when needed, then release it
+        let adapter = {
+            let central_state = resource_arc.lock().unwrap();
+            central_state.adapter.clone()
+        };
 
-        // Acquire the lock *before* any awaits
-        let central_state = central_arc.lock().unwrap();
+        let mut events = match adapter.events().await {
+            Ok(e) => e,
+            Err(_) => {
+                println!("[Rust] Failed to lock on event stream");
+                return;
+            }
+        };
 
-        // Clone the adapter and event_sender *while holding the lock*
-        let adapter = central_state.adapter.clone();
-        let event_sender = central_state.event_sender.clone();
-
-        // *Drop the lock as soon as possible*
-        //drop(central_state); //This will deallocate from the async thread context
-
-        // Start scanning
-        let scan_result = adapter.start_scan(ScanFilter::default()).await; //Added this scan result
-
-        if let Err(e) = scan_result  { //Added this scan result
+        if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
             println!("[Rust] Failed to start scan: {:?}", e);
             return;
         }
 
-        println!("[Rust] Scan started. Listening for events...");
-        let mut events = adapter.events().await.expect("Failed to get event stream");
+        while let Some(event) = events.as_mut().next().await {
+            match event {
+                CentralEvent::DeviceDiscovered(id) => {
+                    let peripheral_result = adapter.peripheral(&id).await;
 
-        while let Some(event) = events.next().await {
-             if let Err(e) = event_sender.send(event).await {
-                 println!("[Rust] Error sending event: {:?}", e);
-             }
+                    match peripheral_result {
+                        Ok(peripheral) => {
+                            let peripheral_is_connected =
+                                peripheral.is_connected().await.unwrap_or(false);
+                            let properties = peripheral.properties().await.ok();
+                            let name = properties.and_then(|p| p.unwrap().local_name);
+
+                            let predefined_prefixes =
+                                vec!["PressureSensor", "Arduino", "HumiditySensor"];
+                            let should_connect = name.as_ref().map_or(false, |name_str| {
+                                predefined_prefixes
+                                    .iter()
+                                    .any(|prefix| name_str.contains(prefix))
+                            });
+
+                            if should_connect && !peripheral_is_connected {
+                                if let Err(err) = peripheral.connect().await {
+                                    eprintln!("Error connecting to peripheral, skipping: {}", err);
+                                    continue;
+                                }
+                                println!("Now connected to peripheral {:?}.", name);
+                                if let Err(e) = peripheral.discover_services().await {
+                                    println!("Error discovering services: {:?}", e);
+                                }
+
+                                for service in peripheral.services() {
+                                    println!("Service: {:?}", service.uuid);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            println!("PeripheralDiscovery Error {:?}", e);
+                        }
+                    }
+                }
+                CentralEvent::StateUpdate(state) => {
+                    println!("AdapterStatusUpdate {:?}", state);
+                }
+                CentralEvent::DeviceConnected(id) => {
+                    println!("DeviceConnected: {:?}", id);
+                }
+                CentralEvent::DeviceDisconnected(id) => {
+                    println!("DeviceDisconnected: {:?}", id);
+                }
+                CentralEvent::ManufacturerDataAdvertisement {
+                    id,
+                    manufacturer_data,
+                } => {
+                    println!(
+                        "ManufacturerDataAdvertisement: {:?}, {:?}",
+                        id, manufacturer_data
+                    );
+                }
+                CentralEvent::ServiceDataAdvertisement { id, service_data } => {
+                    println!("ServiceDataAdvertisement: {:?}, {:?}", id, service_data);
+                }
+                CentralEvent::ServicesAdvertisement { id, services } => {
+                    println!("ServicesAdvertisement: {:?}, {:?}", id, services);
+                }
+                _ => {}
+            }
         }
     });
 
-    Ok(atoms::ok())
+    Ok(resource)
 }

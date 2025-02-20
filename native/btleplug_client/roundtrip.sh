@@ -1,0 +1,1 @@
+cargo fmt && cargo clean && cargo build

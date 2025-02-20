@@ -1,8 +1,8 @@
 use crate::atoms;
+use futures::StreamExt;
 use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, ResourceArc, Term};
 use std::sync::{Arc, Mutex};
-use tokio::spawn;
-use futures::StreamExt; // ✅ Fix: Import StreamExt
+use tokio::spawn; // ✅ Fix: Import StreamExt
 
 use btleplug::api::Peripheral as _; // ✅ Fix: Import Peripheral trait methods
 use btleplug::platform::Peripheral;
@@ -31,7 +31,6 @@ impl Drop for PeripheralState {
         println!("[Rust] PeripheralResource destructor called.");
     }
 }
-
 
 #[rustler::nif]
 pub fn connect(
@@ -95,7 +94,8 @@ pub fn subscribe(
                 }
             };
 
-            while let Some(notification) = notifications.next().await { // ✅ Fix: `.next()` now works
+            while let Some(notification) = notifications.next().await {
+                // ✅ Fix: `.next()` now works
                 println!("[Rust] Received Notification: {:?}", notification.value);
             }
         } else {

@@ -89,13 +89,22 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     // Create the channel here.
     let (event_sender, mut event_receiver) = mpsc::channel::<CentralEvent>(100);
 
+    // let state = CentralManagerState::new(env.pid(), manager, adapter, runtime, event_sender);
+    // let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
+
     let state = CentralManagerState::new(env.pid(), manager, adapter, runtime, event_sender);
-    let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
-    println!("[Rust] Here ...");
+    let state_arc = Arc::new(Mutex::new(state)); // Wrap in Arc *before* moving
+
+    println!("[Rust] Before panicking ...");
+
+    let resource = ResourceArc::new(CentralRef(state_arc.clone())); // Clone the Arc
+
+
+    
     // println!("[Rust] CentralManagerState created with PID: {:?}", env.pid());
 
-    let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
-    println!("[Rust] Here 2 ...");
+    // let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
+    println!("[Rust] After panicking ...");
     let resource_clone = resource.clone(); // ✅ Clone before spawning
     
 

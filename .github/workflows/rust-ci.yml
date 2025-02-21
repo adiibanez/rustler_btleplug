@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         manifest:
-        - native/rustler_btleplug/Cargo.toml
+        - native/btleplug_client/Cargo.toml
 
     steps:
     - uses: actions/checkout@v4

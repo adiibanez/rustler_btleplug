@@ -23,7 +23,7 @@ jobs:
 
     steps:
     - name: install ble packages
-      run: apt install libdbus-1-dev pkg-config
+      run: sudo apt install libdbus-1-dev pkg-config
 
     - uses: actions/checkout@v4
 

@@ -38,7 +38,7 @@ jobs:
         job:
         #- { target: aarch64-apple-darwin, os: macos-13 }
         #- { target: aarch64-unknown-linux-gnu, os: ubuntu-20.04, use-cross: true }
-        - { target: aarch64-unknown-linux-gnu, os: ubuntu-20.04-arm, use-cross: true }
+        - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, use-cross: true }
         #- { target: aarch64-unknown-linux-musl, os: ubuntu-20.04, use-cross: true }
         #- { target: x86_64-apple-darwin, os: macos-13 }
         # - { target: x86_64-pc-windows-gnu, os: windows-2022, rustflags: "-C target-feature=+fxsr,+sse,+sse2,+sse3,+ssse3,+sse4.1,+sse4.2,+popcnt,+avx,+fma" }
@@ -78,7 +78,7 @@ jobs:
         # Install dependencies
         #sudo apt-get install -y libdbus-1-dev libdbus-1-dev:arm64 pkg-config
 
-        sudo dpkg -i DEB_PACKAGE
+        # sudo dpkg -i DEB_PACKAGE
 
         # Find the dbus-1.pc file
         find /usr -name dbus-1.pc

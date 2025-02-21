@@ -62,7 +62,7 @@ jobs:
       run: |
         echo "Installing Ubuntu-specific dependencies..."
         # Choose a mirror (replace with your preferred mirror)
-        MIRROR="http://archive.ubuntu.com/ubuntu/"
+        # MIRROR="http://archive.ubuntu.com/ubuntu/"
 
         sudo dpkg --add-architecture arm64
         sudo apt update -o APT::Architecture=arm64

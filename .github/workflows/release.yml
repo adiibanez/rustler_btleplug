@@ -57,7 +57,7 @@ jobs:
 
     steps:
     - name: Install Dependencies (Ubuntu Only)
-      if: runner.os == 'Linux'
+      if: runner.os == 'Linux_'
       # && matrix.job.os == 'ubuntu-24.04-arm'
       run: |
         echo "Installing Ubuntu-specific dependencies..."

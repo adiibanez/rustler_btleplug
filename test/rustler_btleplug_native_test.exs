@@ -16,11 +16,15 @@ defmodule RustlerBtleplug.NativeTest do
     assert is_reference(resource)
   end
 
-  # test "BLE scanning lifecycle" do
-  #   # {:ok, ble_resource} = Native.create_central()
-  #   ble_resource = Native.create_central()
-  #   assert _scan_resource = Native.start_scan(ble_resource)
-  # end
+  test "BLE scanning lifecycle" do
+    # {:ok, ble_resource} = Native.create_central()
+    resource = Native.create_central()
+    |> Native.start_scan()
+
+    Process.sleep(1000)
+
+    assert is_reference(resource)
+  end
 
   # test "Device connection" do
   #   # {:ok, ble_resource} = Native.create_central()

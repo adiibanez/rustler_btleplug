@@ -70,11 +70,15 @@ jobs:
         # Replace the existing mirror in /etc/apt/sources.list
         # sudo sed -i "s|http:\/\/.*ubuntu.com\/ubuntu\/|$MIRROR|g" /etc/apt/sources.list
 
+        cat /etc/apt/sources.list
+
         # Update apt repositories
         sudo apt update
 
         # Install dependencies
-        sudo apt-get install -y libdbus-1-dev libdbus-1-dev:arm64 pkg-config
+        #sudo apt-get install -y libdbus-1-dev libdbus-1-dev:arm64 pkg-config
+
+        sudo dpkg -i DEB_PACKAGE
 
         # Find the dbus-1.pc file
         find /usr -name dbus-1.pc

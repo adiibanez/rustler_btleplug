@@ -1,6 +1,8 @@
 defmodule RustlerBtleplug.MixProject do
   use Mix.Project
 
+  @version "0.0.1-alpha"
+
   @nerves_rust_target_triple_mapping %{
     "armv6-nerves-linux-gnueabihf": "arm-unknown-linux-gnueabihf",
     "armv7-nerves-linux-gnueabihf": "armv7-unknown-linux-gnueabihf",

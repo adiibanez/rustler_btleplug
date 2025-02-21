@@ -4,9 +4,9 @@ defmodule RustlerBtleplug.Native do
   use RustlerPrecompiled,
     otp_app: :rustler_btleplug,
     crate: :btleplug_client,
-    base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v0.0.1",
+    base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v0.0.1-alpha",
     force_build: System.get_env("RUSTLER_PRECOMPILATION_EXAMPLE_BUILD") in ["1", "true"],
-    version: "0.0.1"
+    version: "0.0.1-alpha"
 
   @type central() :: reference()
   @type peripheral() :: reference()

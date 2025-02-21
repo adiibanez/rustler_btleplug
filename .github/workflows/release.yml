@@ -37,8 +37,8 @@ jobs:
         nif: [ "2.15" ]
         job:
         #- { target: aarch64-apple-darwin, os: macos-13 }
-        #- { target: aarch64-unknown-linux-gnu, os: ubuntu-20.04, use-cross: true }
-        - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, use-cross: true }
+        - { target: aarch64-unknown-linux-gnu, os: ubuntu-20.04, use-cross: true }
+        # - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, use-cross: true }
         #- { target: aarch64-unknown-linux-musl, os: ubuntu-20.04, use-cross: true }
         #- { target: x86_64-apple-darwin, os: macos-13 }
         # - { target: x86_64-pc-windows-gnu, os: windows-2022, rustflags: "-C target-feature=+fxsr,+sse,+sse2,+sse3,+ssse3,+sse4.1,+sse4.2,+popcnt,+avx,+fma" }
@@ -134,6 +134,20 @@ jobs:
         project-dir: "native/btleplug_client"
         cargo-args: ${{ matrix.job.cargo-args }}
         variant: ${{ matrix.job.variant }}
+    - name: Generate Checksums
+      shell: bash
+      run: |
+        # Generate SHA256 checksum
+        SHA256SUM=$(sha256sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+        echo "SHA256SUM=$SHA256SUM" >> $GITHUB_ENV
+
+        # Generate SHA1 checksum
+        SHA1SUM=$(sha1sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+        echo "SHA1SUM=$SHA1SUM" >> $GITHUB_ENV
+
+        # Generate MD5 checksum
+        MD5SUM=$(md5sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+        echo "MD5SUM=$MD5SUM" >> $GITHUB_ENV
 
     - name: Artifact attestation
       uses: actions/attest-build-provenance@v1
@@ -145,9 +159,22 @@ jobs:
         name: ${{ steps.build-crate.outputs.file-name }}
         path: ${{ steps.build-crate.outputs.file-path }}
 
+    - name: Create Release Notes with Checksums
+      if: startsWith(github.ref, 'refs/tags/')
+      run: |
+        RELEASE_BODY="${{ github.event.release.body }}\n\n"
+        RELEASE_BODY+="- SHA256 Checksum: ${{ env.SHA256SUM }}\n"
+        RELEASE_BODY+="- SHA1 Checksum: ${{ env.SHA1SUM }}\n"
+        RELEASE_BODY+="- MD5 Checksum: ${{ env.MD5SUM }}\n"
+
+        echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+        echo "$RELEASE_BODY" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
+
     - name: Publish archives and packages
       uses: softprops/action-gh-release@v2
       with:
         files: |
           ${{ steps.build-crate.outputs.file-path }}
+        body: ${{ env.RELEASE_BODY }}
       if: startsWith(github.ref, 'refs/tags/')

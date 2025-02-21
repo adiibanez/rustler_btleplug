@@ -60,10 +60,10 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         echo "Installing Ubuntu-specific dependencies..."
-        sudo apt update -o APT::Architecture=arm64
-        # sudo dpkg --add-architecture arm64
-        # sudo apt-get update
-        sudo apt-get install -y libdbus-1-dev:arm64 pkg-config
+        sudo apt update -o APT::Architecture=arm64 || true
+        # sudo dpkg --add-architecture arm64 || true
+        # sudo apt-get update || true
+        sudo apt-get install -y libdbus-1-dev:arm64 pkg-config || true
 
         # Find the dbus-1.pc file
         find /usr -name dbus-1.pc

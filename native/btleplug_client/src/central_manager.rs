@@ -74,13 +74,35 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     let (event_sender, event_receiver) = mpsc::channel::<CentralEvent>(100);
     let event_receiver = Arc::new(RwLock::new(event_receiver));
     let event_receiver_clone = event_receiver.clone();
+    let event_sender_clone = event_sender.clone();
 
-    let state = CentralManagerState::new(env.pid(), manager, adapter, event_sender, event_receiver);
+    let state = CentralManagerState::new(env.pid(), manager, adapter.clone(), event_sender, event_receiver);
     let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
 
+    // Spawn a task to handle adapter events
     RUNTIME.spawn(async move {
-        println!("[Rust] Inside tokio::spawn ...");
-        
+        println!("[Rust] Starting adapter event handler...");
+        let mut events = match adapter.events().await {
+            Ok(events) => events,
+            Err(e) => {
+                println!("[Rust] Failed to get adapter events: {:?}", e);
+                return;
+            }
+        };
+
+        while let Some(event) = events.next().await {
+            println!("[Rust] Received adapter event: {:?}", event);
+            if let Err(e) = event_sender_clone.send(event).await {
+                println!("[Rust] Failed to forward event: {:?}", e);
+                break;
+            }
+        }
+        println!("[Rust] Adapter event handler closed");
+    });
+
+    // Spawn a task to handle our channel events
+    RUNTIME.spawn(async move {
+        println!("[Rust] Starting event receiver handler...");
         let mut receiver = event_receiver_clone.write().await;
         
         while let Some(event) = receiver.recv().await {
@@ -94,7 +116,9 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
                 CentralEvent::DeviceConnected(id) => {
                     println!("[Rust] Device Connected: {:?}", id);
                 }
-                _ => {}
+                _ => {
+                    println!("[Rust] Other event: {:?}", event);
+                }
             }
         }
         println!("[Rust] Event receiver closed.");
@@ -103,7 +127,6 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     Ok(resource)
 }
 
-// Update start_scan to use RUNTIME as well
 #[rustler::nif]
 pub fn start_scan(resource: ResourceArc<CentralRef>) -> Result<ResourceArc<CentralRef>, RustlerError> {
     println!("[Rust] Starting BLE scan...");
@@ -116,53 +139,11 @@ pub fn start_scan(resource: ResourceArc<CentralRef>) -> Result<ResourceArc<Centr
             central_state.adapter.clone()
         };
 
-        let mut events = match adapter.events().await {
-            Ok(e) => e,
-            Err(_) => {
-                println!("[Rust] Failed to lock on event stream");
-                return;
-            }
-        };
-
         if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
             println!("[Rust] Failed to start scan: {:?}", e);
             return;
         }
-
-        while let Some(event) = events.as_mut().next().await {
-            match event {
-                CentralEvent::DeviceDiscovered(id) => {
-                    let peripheral_result = adapter.peripheral(&id).await;
-
-                    match peripheral_result {
-                        Ok(peripheral) => {
-                            let peripheral_is_connected =
-                                peripheral.is_connected().await.unwrap_or(false);
-                            let properties = peripheral.properties().await.ok();
-                            let name = properties.and_then(|p| p.as_ref()?.local_name.clone());
-
-                            let predefined_prefixes =
-                                vec!["PressureSensor", "Arduino", "HumiditySensor"];
-                            let should_connect = name.as_ref().map_or(false, |name_str| {
-                                predefined_prefixes
-                                    .iter()
-                                    .any(|prefix| name_str.contains(prefix))
-                            });
-
-                            if should_connect && !peripheral_is_connected {
-                                if let Err(err) = peripheral.connect().await {
-                                    eprintln!("Error connecting to peripheral, skipping: {}", err);
-                                    continue;
-                                }
-                                println!("Now connected to peripheral {:?}.", name);
-                            }
-                        }
-                        Err(e) => println!("PeripheralDiscovery Error {:?}", e),
-                    }
-                }
-                _ => {}
-            }
-        }
+        println!("[Rust] Scan started successfully");
     });
 
     Ok(resource)

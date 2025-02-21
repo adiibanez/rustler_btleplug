@@ -102,7 +102,6 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
         println!("[Rust] Adapter event handler closed");
     });
 
-    // Spawn a task to handle our channel events
     RUNTIME.spawn(async move {
         println!("[Rust] Starting event receiver handler...");
         let mut receiver = event_receiver_clone.write().await;
@@ -217,24 +216,6 @@ pub fn start_scan(
     Ok(resource)
 }
 
-// #[rustler::nif]
-// pub fn is_scanning(resource: ResourceArc<CentralRef>) -> Result<bool, RustlerError> {
-//     let resource_arc = resource.0.clone();
-
-//     RUNTIME.block_on(async {
-//         let adapter = {
-//             let central_state = resource_arc
-//                 .lock()
-//                 .map_err(|e| RustlerError::Term(Box::new(format!("Lock error: {}", e))))?;
-//             central_state.adapter.clone()
-//         };
-
-//         adapter.is_scanning().await.map_err(|e| {
-//             RustlerError::Term(Box::new(format!("Failed to check scan status: {}", e)))
-//         })
-//     })
-// }
-
 #[rustler::nif]
 pub fn stop_scan(
     resource: ResourceArc<CentralRef>,
@@ -268,13 +249,11 @@ pub fn find_peripheral(
 
     let resource_arc = resource.0.clone();
 
-    // Get the adapter from the central state
     let adapter = {
         let central_state = resource_arc.lock().unwrap();
         central_state.adapter.clone()
     };
 
-    // Use the runtime to get peripherals
     let peripherals = RUNTIME.block_on(async {
         adapter
             .peripherals()

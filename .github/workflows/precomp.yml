@@ -56,11 +56,11 @@ jobs:
     steps:
 
     - name: Install Dependencies (Ubuntu Only)
-      if: matrix.os == 'ubuntu-20.04'
+      if: runner.os == 'Linux'
       run: |
         echo "Installing Ubuntu-specific dependencies..."
         apt-get update
-        apt-get install -y libdbus-1-dev pkg-config
+        apt-get install -y libbluetooth-dev
 
     - name: Checkout source code
       uses: actions/checkout@v4

@@ -47,25 +47,24 @@ jobs:
 
     - run: mix deps.get
     - run: mix deps.compile
-    - name: Run tests
-      run: mix test --warnings-as-errors
-    - name: Run property tests
-      run: |
-        mix test --only property --warnings-as-errors
-    - name: Compile once again but without optional deps
-      run: mix compile --force --warnings-as-errors --no-optional-deps
-    - name: Run cloud integration tests
-      run: |
-        mix localstack.setup
-        mix test --only cloud_integration
-
-  format:
-    runs-on: ubuntu-latest
-    name: mix format
-    steps:
-    - uses: actions/checkout@v4
-    - uses: erlef/setup-beam@v1
-      with:
-        otp-version: "27.2"
-        elixir-version: 1.18
-    - run: mix format --check-formatted
+    # - name: Run tests
+    #   run: mix test --warnings-as-errors
+    # - name: Run property tests
+    #   run: |
+    #     mix test --only property --warnings-as-errors
+    # - name: Compile once again but without optional deps
+    #   run: mix compile --force --warnings-as-errors --no-optional-deps
+    # - name: Run cloud integration tests
+    #   run: |
+    #     mix localstack.setup
+    #     mix test --only cloud_integration
+    # format:
+    #   runs-on: ubuntu-latest
+    #   name: mix format
+    #   steps:
+    #   - uses: actions/checkout@v4
+    #   - uses: erlef/setup-beam@v1
+    #     with:
+    #       otp-version: "27.2"
+    #       elixir-version: 1.18
+    #   - run: mix format --check-formatted

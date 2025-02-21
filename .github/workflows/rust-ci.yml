@@ -22,14 +22,15 @@ jobs:
         - native/btleplug_client/Cargo.toml
 
     steps:
+    - name: install ble packages
+      run: apt install libdbus-1-dev pkg-config
+
     - uses: actions/checkout@v4
 
     - uses: Swatinem/rust-cache@v2
       with:
         workspaces: |
-          native/explorer
-    - name: install ble packages
-      run: apt install libdbus-1-dev pkg-config
+          native/btleplug_client
       #pkg-config libudev-dev libglib2.0-dev libusb-1.0-0-dev libboost-all-dev libevdev-dev
 
     - name: run rustfmt

@@ -15,16 +15,15 @@ extern crate rustler;
 #[macro_use]
 extern crate rustler_codegen;
 
-use std::collections::HashMap;
 use central_manager::*;
+use once_cell::sync::Lazy;
 use peripheral::*;
 use rustler::{Env, Error as RustlerError, Term};
-use once_cell::sync::Lazy;
+use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
-pub static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
-    tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime")
-});
+pub static RUNTIME: Lazy<Runtime> =
+    Lazy::new(|| tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime"));
 
 fn on_load(env: Env, _info: Term) -> bool {
     println!("[Rust] Initializing Rust NIF module...");
@@ -55,7 +54,5 @@ fn get_map() -> HashMap<String, HashMap<String, String>> {
     map
     //atoms::ok().encode(env)
 }
-
-
 
 rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load);

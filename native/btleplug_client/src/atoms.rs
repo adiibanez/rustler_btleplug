@@ -13,6 +13,8 @@ rustler::atoms! {
     btleplug_got_central,
     btleplug_no_adapters_found,
     btleplug_adapter_status_update,
+    btleplug_scan_started,
+    btleplug_scan_stopped,
 
     btleplug_device_discovered,
     btleplug_device_discovery_error,

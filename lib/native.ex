@@ -11,11 +11,14 @@ defmodule RustlerBtleplug.Native do
 
   @spec create_central() :: {:ok, central()} | {:error, term()}
   def create_central(), do: error()
-  @spec start_scan(central()) :: {:ok, central()} | {:error, term()}
-  def start_scan(_central), do: error()
+  @spec start_scan(central(), Number.t()) :: {:ok, central()} | {:error, term()}
+  def start_scan(_central, _ms \\ 1000), do: error()
 
   @spec stop_scan(central()) :: {:ok, central()} | {:error, term()}
   def stop_scan(_central), do: error()
+
+  # @spec is_scanning(central()) :: {:ok, boolean()} | {:error, term()}
+  # def is_scanning(_central), do: error()
 
   #def add_peripheral(_central, _mac), do: error()
 

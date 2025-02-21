@@ -1,7 +1,7 @@
 use crate::atoms;
 use crate::peripheral::PeripheralRef;
 use crate::peripheral::PeripheralState;
-use rustler::{Atom, Encoder, Env, OwnedEnv, Error as RustlerError, LocalPid, ResourceArc, Term};
+use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
 
 use btleplug::api::{
     bleuuid::BleUuid, Central, CentralEvent, CharPropFlags, Characteristic, Manager as _,
@@ -12,10 +12,11 @@ use futures::StreamExt;
 use tokio::spawn;
 use uuid::Uuid;
 
-use std::sync::{Arc, Mutex};
-use tokio::sync::RwLock;
-use tokio::sync::mpsc;
 use crate::RUNTIME;
+use std::sync::{Arc, Mutex};
+use tokio::sync::mpsc;
+use tokio::sync::RwLock;
+use tokio::time::{sleep, Duration};
 
 pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>);
 
@@ -48,14 +49,14 @@ impl CentralManagerState {
 #[rustler::nif]
 pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError> {
     println!("[Rust] Creating CentralManager...");
-    
-    let manager = RUNTIME.block_on(Manager::new()).map_err(|e| {
-        RustlerError::Term(Box::new(format!("Manager error: {}", e)))
-    })?;
 
-    let adapters = RUNTIME.block_on(manager.adapters()).map_err(|e| {
-        RustlerError::Term(Box::new(format!("Adapter error: {}", e)))
-    })?;
+    let manager = RUNTIME
+        .block_on(Manager::new())
+        .map_err(|e| RustlerError::Term(Box::new(format!("Manager error: {}", e))))?;
+
+    let adapters = RUNTIME
+        .block_on(manager.adapters())
+        .map_err(|e| RustlerError::Term(Box::new(format!("Adapter error: {}", e))))?;
 
     if adapters.is_empty() {
         return Err(RustlerError::Term(Box::new("No available adapter")));
@@ -70,7 +71,13 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     let event_receiver_clone = event_receiver.clone();
     let event_sender_clone = event_sender.clone();
 
-    let state = CentralManagerState::new(env.pid(), manager, adapter.clone(), event_sender, event_receiver);
+    let state = CentralManagerState::new(
+        env.pid(),
+        manager,
+        adapter.clone(),
+        event_sender,
+        event_receiver,
+    );
     let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
     let pid = env.pid();
 
@@ -99,19 +106,38 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     RUNTIME.spawn(async move {
         println!("[Rust] Starting event receiver handler...");
         let mut receiver = event_receiver_clone.write().await;
-        
+
         while let Some(event) = receiver.recv().await {
-            let mut msg_env = OwnedEnv::new(); // Create new OwnedEnv for each message
+            let mut msg_env = OwnedEnv::new();
             match event {
                 CentralEvent::DeviceDiscovered(id) => {
                     println!("DEBUG: Discovered device ID: {:?}", id);
                     let id_str = id.to_string();
-                    msg_env.send_and_clear(&pid, |env| {
+                    if let Err(e) = msg_env.send_and_clear(&pid, |env| {
                         (
                             atoms::btleplug_device_discovered(),
                             format!("Device discovered: Id {:?}", id),
-                        ).encode(env)
-                    }).unwrap();
+                        )
+                            .encode(env)
+                    }) {
+                        println!("[Rust] Failed to send device discovery message: {:?}", e);
+                    }
+                }
+                CentralEvent::ManufacturerDataAdvertisement {
+                    id,
+                    manufacturer_data,
+                } => {
+                    println!("DEBUG: Manufacturer data from device ID: {:?}", id);
+                    if let Err(e) = msg_env.send_and_clear(&pid, |env| {
+                        (
+                            atoms::btleplug_manufacturer_data_advertisement(),
+                            format!("Manufacturer data from: {:?}", id),
+                            manufacturer_data,
+                        )
+                            .encode(env)
+                    }) {
+                        println!("[Rust] Failed to send manufacturer data message: {:?}", e);
+                    }
                 }
                 _ => {
                     println!("[Rust] Other event: {:?}", event);
@@ -125,30 +151,93 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
 }
 
 #[rustler::nif]
-pub fn start_scan(resource: ResourceArc<CentralRef>) -> Result<ResourceArc<CentralRef>, RustlerError> {
-    println!("[Rust] Starting BLE scan...");
+pub fn start_scan(
+    env: Env,
+    resource: ResourceArc<CentralRef>,
+    duration_ms: u64,
+) -> Result<ResourceArc<CentralRef>, RustlerError> {
+    println!("[Rust] Starting BLE scan for {} ms...", duration_ms);
 
     let resource_arc = resource.0.clone();
+    let resource_arc_stop = resource_arc.clone();
 
     RUNTIME.spawn(async move {
+        let mut msg_env = OwnedEnv::new();
+
         let adapter = {
             let central_state = resource_arc.lock().unwrap();
             central_state.adapter.clone()
+        };
+
+        let pid = {
+            let central_state = resource_arc.lock().unwrap();
+            central_state.pid.clone()
         };
 
         if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
             println!("[Rust] Failed to start scan: {:?}", e);
             return;
         }
+        msg_env.send_and_clear(&pid, |env| {
+            (
+                atoms::btleplug_scan_started(),
+                format!("Scan started: {:?} ms", duration_ms),
+            )
+                .encode(env)
+        });
+
         println!("[Rust] Scan started successfully");
+
+        // Wait for the specified duration
+        sleep(Duration::from_millis(duration_ms)).await;
+
+        // Stop the scan after timeout
+        let adapter = {
+            let central_state = resource_arc_stop.lock().unwrap();
+            central_state.adapter.clone()
+        };
+
+        if let Err(e) = adapter.stop_scan().await {
+            println!("[Rust] Failed to stop scan after timeout: {:?}", e);
+            return;
+        }
+
+        msg_env.send_and_clear(&pid, |env| {
+            (
+                atoms::btleplug_scan_stopped(),
+                format!("Scan stopped after timeout: {:?} ms", duration_ms),
+            )
+                .encode(env)
+        });
+
+        println!("[Rust] Scan stopped automatically after {} ms", duration_ms);
     });
 
     Ok(resource)
 }
 
+// #[rustler::nif]
+// pub fn is_scanning(resource: ResourceArc<CentralRef>) -> Result<bool, RustlerError> {
+//     let resource_arc = resource.0.clone();
+
+//     RUNTIME.block_on(async {
+//         let adapter = {
+//             let central_state = resource_arc
+//                 .lock()
+//                 .map_err(|e| RustlerError::Term(Box::new(format!("Lock error: {}", e))))?;
+//             central_state.adapter.clone()
+//         };
+
+//         adapter.is_scanning().await.map_err(|e| {
+//             RustlerError::Term(Box::new(format!("Failed to check scan status: {}", e)))
+//         })
+//     })
+// }
 
 #[rustler::nif]
-pub fn stop_scan(resource: ResourceArc<CentralRef>) -> Result<ResourceArc<CentralRef>, RustlerError> {
+pub fn stop_scan(
+    resource: ResourceArc<CentralRef>,
+) -> Result<ResourceArc<CentralRef>, RustlerError> {
     println!("[Rust] Stopping BLE scan...");
 
     let resource_arc = resource.0.clone();
@@ -168,17 +257,16 @@ pub fn stop_scan(resource: ResourceArc<CentralRef>) -> Result<ResourceArc<Centra
     Ok(resource)
 }
 
-
 #[rustler::nif]
 pub fn find_peripheral(
     env: Env,
     resource: ResourceArc<CentralRef>,
-    uuid: String
+    uuid: String,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     println!("[Rust] Finding peripheral with UUID: {}", uuid);
-    
+
     let resource_arc = resource.0.clone();
-    
+
     // Get the adapter from the central state
     let adapter = {
         let central_state = resource_arc.lock().unwrap();
@@ -187,24 +275,27 @@ pub fn find_peripheral(
 
     // Use the runtime to get peripherals
     let peripherals = RUNTIME.block_on(async {
-        adapter.peripherals().await.map_err(|e| {
-            RustlerError::Term(Box::new(format!("Failed to get peripherals: {}", e)))
-        })
+        adapter
+            .peripherals()
+            .await
+            .map_err(|e| RustlerError::Term(Box::new(format!("Failed to get peripherals: {}", e))))
     })?;
 
     // Find the peripheral with matching UUID
     for peripheral in peripherals {
-        println!("[Rust] Iterating peripheral peripheral.id(): {:?}, uuid: {:?}", peripheral.id(), uuid);
+        println!(
+            "[Rust] Iterating peripheral peripheral.id(): {:?}, uuid: {:?}",
+            peripheral.id(),
+            uuid
+        );
         if peripheral.id().to_string() == uuid {
             println!("[Rust] Found peripheral: {:?}", peripheral.id());
             let peripheral_state = PeripheralState::new(env.pid(), peripheral);
-            return Ok(ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(peripheral_state)))));
+            return Ok(ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(
+                peripheral_state,
+            )))));
         }
     }
 
     Err(RustlerError::Term(Box::new("Peripheral not found")))
 }
-
-
-
-

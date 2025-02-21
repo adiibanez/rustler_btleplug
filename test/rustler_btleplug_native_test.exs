@@ -21,13 +21,31 @@ defmodule RustlerBtleplug.NativeTest do
     resource = Native.create_central()
     |> Native.start_scan()
 
-    Process.sleep(1000)
+    #Process.sleep(1000)
 
     assert_receive {:btleplug_device_discovered, _msg}
 
     assert is_reference(resource)
   end
 
+
+  test "BLE short scanning lifecycle" do
+    # {:ok, ble_resource} = Native.create_central()
+    resource = Native.create_central()
+    |> Native.start_scan(100)
+
+    assert is_reference(resource)
+
+    # assert resource |> Native.is_scanning()
+    assert_receive {:btleplug_scan_started, _msg}
+    assert_receive {:btleplug_device_discovered, _msg}
+
+    Process.sleep(150)
+
+    assert_receive {:btleplug_scan_stopped, _msg}
+
+    #assert not resource |> Native.is_scanning()
+  end
 
   test "BLE find unknown peripheral lifecycle" do
     # {:ok, ble_resource} = Native.create_central()
@@ -47,7 +65,6 @@ defmodule RustlerBtleplug.NativeTest do
     |> Native.start_scan()
 
     assert is_reference(central_resource)
-
 
     Process.sleep(1000)
 

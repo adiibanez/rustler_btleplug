@@ -92,7 +92,10 @@ pub fn subscribe(
                         match peripheral.notifications().await {
                             Ok(mut notifications) => {
                                 while let Some(notification) = notifications.next().await {
-                                    println!("[Rust] Received Notification: {:?}", notification.value);
+                                    println!(
+                                        "[Rust] Received Notification: {:?}",
+                                        notification.value
+                                    );
                                     // Here you could send notifications back to Elixir using the pid
                                 }
                             }

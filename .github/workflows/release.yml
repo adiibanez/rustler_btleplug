@@ -53,44 +53,6 @@ jobs:
         # - { target: x86_64-unknown-linux-musl, os: ubuntu-20.04, use-cross: true }
 
     steps:
-    - name: Install Dependencies (Ubuntu Only)
-      if: runner.os == 'Linux_'
-      # && matrix.job.os == 'ubuntu-24.04-arm'
-      run: |
-        echo "Installing Ubuntu-specific dependencies..."
-        # Choose a mirror (replace with your preferred mirror)
-        # MIRROR="http://archive.ubuntu.com/ubuntu/"
-
-        #sudo dpkg --add-architecture arm64
-        #sudo apt update -o APT::Architecture=arm64
-
-        # Replace the existing mirror in /etc/apt/sources.list
-        # sudo sed -i "s|http:\/\/.*ubuntu.com\/ubuntu\/|$MIRROR|g" /etc/apt/sources.list
-
-        cat /etc/apt/sources.list
-
-        # Update apt repositories
-        sudo apt update
-
-        # Install dependencies libdbus-1-dev:arm64
-        sudo apt-get install -y libdbus-1-dev pkg-config
-
-        # sudo dpkg -i DEB_PACKAGE
-
-        # Find the dbus-1.pc file
-        find /usr -name dbus-1.pc
-
-        # Set PKG_CONFIG_PATH
-        export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/ # Or the correct path
-        echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
-
-        # Verify pkg-config can find dbus-1
-        pkg-config --exists dbus-1
-        if [ $? -ne 0 ]; then
-          echo "Error: pkg-config cannot find dbus-1"
-          exit 1
-        fi
-
     - name: Checkout source code
       uses: actions/checkout@v4
 
@@ -135,15 +97,42 @@ jobs:
       shell: bash
       run: |
         # Generate SHA256 checksum
-        SHA256SUM=$(openssl dgst -sha256 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          SHA256SUM=$(sha256sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          SHA256SUM=$(openssl dgst -sha256 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
+        elif [[ "$RUNNER_OS" == "Windows" ]]; then
+          SHA256SUM=$(Get-FileHash -Algorithm SHA256 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash)
+        else
+          echo "Unsupported operating system"
+          exit 1
+        fi
         echo "SHA256SUM=$SHA256SUM" >> $GITHUB_ENV
 
         # Generate SHA1 checksum
-        SHA1SUM=$(openssl dgst -sha1 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          SHA1SUM=$(sha1sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          SHA1SUM=$(openssl dgst -sha1 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
+        elif [[ "$RUNNER_OS" == "Windows" ]]; then
+          SHA1SUM=$(Get-FileHash -Algorithm SHA1 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash)
+        else
+          echo "Unsupported operating system"
+          exit 1
+        fi
         echo "SHA1SUM=$SHA1SUM" >> $GITHUB_ENV
 
         # Generate MD5 checksum
-        MD5SUM=$(openssl dgst -md5 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
+        if [[ "$RUNNER_OS" == "Linux" ]]; then
+          MD5SUM=$(md5sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+        elif [[ "$RUNNER_OS" == "macOS" ]]; then
+          MD5SUM=$(openssl dgst -md5 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
+        elif [[ "$RUNNER_OS" == "Windows" ]]; then
+          MD5SUM=$(Get-FileHash -Algorithm MD5 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash)
+        else
+          echo "Unsupported operating system"
+          exit 1
+        fi
         echo "MD5SUM=$MD5SUM" >> $GITHUB_ENV
 
     - name: Artifact attestation
@@ -168,10 +157,24 @@ jobs:
         echo "$RELEASE_BODY" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
 
-    - name: Publish archives and packages
+    - name: Publish archives and packages (Default)
+      if: startsWith(github.ref, 'refs/tags/') && runner.os != 'Windows'
       uses: softprops/action-gh-release@v2
       with:
         files: |
           ${{ steps.build-crate.outputs.file-path }}
         body: ${{ env.RELEASE_BODY }}
-      if: startsWith(github.ref, 'refs/tags/')
+
+    - name: Publish archives and packages (Windows)
+      if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        # Windows-specific publishing logic here
+        echo "Publishing for Windows..."
+
+        # Example: Set environment variable (as suggested in Stack Overflow link)
+        [Environment]::SetEnvironmentVariable("RELEASE_BODY", "${{ env.RELEASE_BODY }}", "Process")
+
+        # Example: Use a different release action or command
+        gh release create ${{ github.ref_name }} --title "Release ${{ github.ref_name }}" --body "$Env:RELEASE_BODY" ${{ steps.build-crate.outputs.file-path }}
+        echo "Completed Windows Specific Task"

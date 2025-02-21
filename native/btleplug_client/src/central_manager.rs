@@ -1,7 +1,7 @@
 use crate::atoms;
 use crate::peripheral::PeripheralRef;
 use crate::peripheral::PeripheralState;
-use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, ResourceArc, Term};
+use rustler::{Atom, Encoder, Env, OwnedEnv, Error as RustlerError, LocalPid, ResourceArc, Term};
 
 use btleplug::api::{
     bleuuid::BleUuid, Central, CentralEvent, CharPropFlags, Characteristic, Manager as _,
@@ -11,12 +11,6 @@ use btleplug::platform::{Adapter, Manager};
 use futures::StreamExt;
 use tokio::spawn;
 use uuid::Uuid;
-
-// Remove or comment out this function as it's now handled in lib.rs
-// pub fn load(env: Env) -> bool {
-//     rustler::resource!(CentralRef, env);
-//     true
-// }
 
 use std::sync::{Arc, Mutex};
 use tokio::sync::RwLock;
@@ -78,6 +72,7 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
 
     let state = CentralManagerState::new(env.pid(), manager, adapter.clone(), event_sender, event_receiver);
     let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
+    let pid = env.pid();
 
     // Spawn a task to handle adapter events
     RUNTIME.spawn(async move {
@@ -106,15 +101,17 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
         let mut receiver = event_receiver_clone.write().await;
         
         while let Some(event) = receiver.recv().await {
+            let mut msg_env = OwnedEnv::new(); // Create new OwnedEnv for each message
             match event {
                 CentralEvent::DeviceDiscovered(id) => {
-                    println!("[Rust] Device Discovered: {:?}", id);
-                }
-                CentralEvent::DeviceUpdated(id) => {
-                    println!("[Rust] Device Updated: {:?}", id);
-                }
-                CentralEvent::DeviceConnected(id) => {
-                    println!("[Rust] Device Connected: {:?}", id);
+                    println!("DEBUG: Discovered device ID: {:?}", id);
+                    let id_str = id.to_string();
+                    msg_env.send_and_clear(&pid, |env| {
+                        (
+                            atoms::btleplug_device_discovered(),
+                            format!("Device discovered: Id {:?}", id),
+                        ).encode(env)
+                    }).unwrap();
                 }
                 _ => {
                     println!("[Rust] Other event: {:?}", event);

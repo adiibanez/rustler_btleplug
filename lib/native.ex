@@ -33,5 +33,11 @@ defmodule RustlerBtleplug.Native do
   @spec test_string(String.t()) :: {:ok, String.t()} | {:error, term()}
   def test_string(_string), do: error()
 
+  @spec add(Number.t(), Number.t()) :: {:ok, Number.t()} | {:error, term()}
+  def add(_a, _b), do: error()
+
+  @spec get_map() :: {:ok, map()} | {:error, term()}
+  def get_map(), do: error()
+
   defp error, do: :erlang.nif_error(:nif_not_loaded)
 end

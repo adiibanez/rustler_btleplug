@@ -23,6 +23,8 @@ defmodule RustlerBtleplug.NativeTest do
 
     Process.sleep(1000)
 
+    assert_receive {:btleplug_device_discovered, _msg}
+
     assert is_reference(resource)
   end
 

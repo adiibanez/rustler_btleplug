@@ -3,7 +3,7 @@ name = "btleplug_client"
 version = "0.0.1"
 keywords = ["bluetooth", "BLE", "bluez", "uwp", "corebluetooth"]
 categories = ["hardware-support"]
-edition = "2025"
+edition = "2021"
 
 [lib]
 name = "btleplug_client"

@@ -47,11 +47,24 @@ defmodule RustlerBtleplug.MixProject do
     ]
   end
 
+  defp package do
+    [
+      files: [
+        "lib",
+        "native/example/.cargo",
+        "native/example/src",
+        "native/example/Cargo*",
+        "checksum-*.exs",
+        "mix.exs"
+      ]
+    ]
+  end
+
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      #{:rustler, "~> 0.31.0"},
-      {:rustler, ">= 0.31.0", optional: true}
+      # {:rustler, "~> 0.31.0"},
+      {:rustler, ">= 0.31.0", optional: true},
       {:rustler_precompiled, "~> 0.7"}
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
@@ -67,9 +80,9 @@ defmodule RustlerBtleplug.MixProject do
       # "localstack.setup": ["cmd ./test/support/setup-localstack.sh"],
       ci: ["format", "rust.fmt", "rust.lint", "test"],
       fmt: [
-         "format",
-         "rust.fmt",
-       ]
+        "format",
+        "rust.fmt"
+      ]
     ]
   end
 end

@@ -59,8 +59,9 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         echo "Installing Ubuntu-specific dependencies..."
+        export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig/
         sudo apt-get update
-        sudo apt-get install -y libbluetooth-dev
+        sudo apt-get install -y libdbus-1-dev pkg-config
 
     - name: Checkout source code
       uses: actions/checkout@v4

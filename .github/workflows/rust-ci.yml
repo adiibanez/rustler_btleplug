@@ -28,6 +28,9 @@ jobs:
       with:
         workspaces: |
           native/explorer
+    - name: install ble packages
+      run: apt install libdbus-1-dev pkg-config
+      #pkg-config libudev-dev libglib2.0-dev libusb-1.0-0-dev libboost-all-dev libevdev-dev
 
     - name: run rustfmt
       run: cargo fmt --manifest-path=${{ matrix.manifest }} --all -- --check

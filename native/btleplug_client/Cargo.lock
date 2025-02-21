@@ -183,7 +183,7 @@ dependencies = [
 
 [[package]]
 name = "btleplug_client"
-version = "0.0.1"
+version = "0.0.1-alpha"
 dependencies = [
  "btleplug",
  "bufstream",

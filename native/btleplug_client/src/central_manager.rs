@@ -116,7 +116,8 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
                     if let Err(e) = msg_env.send_and_clear(&pid, |env| {
                         (
                             atoms::btleplug_device_discovered(),
-                            format!("Device discovered: Id {:?}", id),
+                            // format!("Device discovered: Id {:?}", id),
+                            id.to_string()
                         )
                             .encode(env)
                     }) {

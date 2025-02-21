@@ -58,7 +58,9 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         echo "Installing Ubuntu-specific dependencies..."
-        sudo dpkg --add-architecture arm64
+        sudo apt update -o APT::Architecture=arm64
+
+        #sudo dpkg --add-architecture arm64
         sudo apt-get update
         sudo apt-get install -y libdbus-1-dev:arm64 pkg-config
 

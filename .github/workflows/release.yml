@@ -57,20 +57,30 @@ jobs:
 
     steps:
     - name: Install Dependencies (Ubuntu Only)
-      if: runner.os == 'Linux'
+      if: matrix.job.os == 'ubuntu-24.04-arm'
       run: |
         echo "Installing Ubuntu-specific dependencies..."
-        #sudo apt update -o APT::Architecture=arm64
-        #sudo dpkg --add-architecture arm64
-        sudo apt-get update
-        #sudo apt-get install -y pkg-config libdbus-1-dev:arm64
-        sudo apt-get install -y pkg-config libdbus-1-dev
+
+        # Choose a mirror (replace with your preferred mirror)
+        MIRROR="http://archive.ubuntu.com/ubuntu/"
+
+        sudo dpkg --add-architecture arm64
+        sudo apt update -o APT::Architecture=arm64
+
+        # Replace the existing mirror in /etc/apt/sources.list
+        sudo sed -i "s|http:\/\/.*ubuntu.com\/ubuntu\/|$MIRROR|g" /etc/apt/sources.list
+
+        # Update apt repositories
+        sudo apt update
+
+        # Install dependencies
+        sudo apt-get install -y libdbus-1-dev libdbus-1-dev:arm64 pkg-config
 
         # Find the dbus-1.pc file
         find /usr -name dbus-1.pc
 
         # Set PKG_CONFIG_PATH
-        export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig/
+        export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/ # Or the correct path
         echo "PKG_CONFIG_PATH: $PKG_CONFIG_PATH"
 
         # Verify pkg-config can find dbus-1

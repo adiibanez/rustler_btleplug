@@ -113,7 +113,6 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
                 CentralEvent::DeviceDiscovered(id) => {
                     let uuid = id.to_string();
                     println!("[Rust] Device discovered - UUID: {}", uuid);
-                    
                     match msg_env.send_and_clear(&pid, |env| {
                         (atoms::btleplug_device_discovered(), uuid).encode(env)
                     }) {

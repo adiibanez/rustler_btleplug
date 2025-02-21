@@ -9,39 +9,28 @@ use btleplug::api::{
 };
 use btleplug::platform::{Adapter, Manager};
 use futures::StreamExt;
-use tokio::runtime::Runtime;
 use tokio::spawn;
-use tokio::sync::mpsc;
-use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use std::sync::Arc;
-// use std::sync::Mutex;
-
-pub fn load(env: Env) -> bool {
-    rustler::resource!(CentralRef, env);
-    true
-}
-
-//#[derive(NifRecord)]
-//#[tag = "central"]
-pub struct CentralRef(Arc<Mutex<CentralManagerState>>);
-
-// impl<'a> Encoder for CentralRef {
-//     fn encode<'b>(&self, env: Env<'b>) -> Term<'b> {
-//         (&self).encode(env)
-//         // match self {
-//         //     MyResult::Success(arc) => (ok(), arc).encode(env),
-//         //     MyResult::Failure(msg) => (error(), msg).encode(env),
-//         // }
-//     }
+// Remove or comment out this function as it's now handled in lib.rs
+// pub fn load(env: Env) -> bool {
+//     rustler::resource!(CentralRef, env);
+//     true
 // }
+
+use std::sync::{Arc, Mutex};
+use tokio::sync::RwLock;
+use tokio::sync::mpsc;
+use crate::RUNTIME;
+
+pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>); // ✅ Required by Rustler
 
 pub struct CentralManagerState {
     pub pid: LocalPid,
     pub adapter: Adapter,
     pub manager: Manager,
     pub event_sender: mpsc::Sender<CentralEvent>,
+    pub event_receiver: Arc<RwLock<mpsc::Receiver<CentralEvent>>>, // ✅ Async safe RwLock
 }
 
 impl CentralManagerState {
@@ -50,12 +39,14 @@ impl CentralManagerState {
         manager: Manager,
         adapter: Adapter,
         event_sender: mpsc::Sender<CentralEvent>,
+        event_receiver: Arc<RwLock<mpsc::Receiver<CentralEvent>>>,
     ) -> Self {
         CentralManagerState {
             pid,
             manager,
             adapter,
             event_sender,
+            event_receiver,
         }
     }
 }
@@ -63,58 +54,36 @@ impl CentralManagerState {
 #[rustler::nif]
 pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError> {
     println!("[Rust] Creating CentralManager...");
-
-    let runtime = tokio::runtime::Runtime::new().map_err(|e| {
-        println!("[Rust] Runtime creation failed: {:?}", e);
-        RustlerError::Term(Box::new(format!("Runtime error: {}", e)))
-    })?;
-
-    let manager = runtime.block_on(Manager::new()).map_err(|e| {
-        println!("[Rust] Manager creation failed: {:?}", e);
+    
+    let manager = RUNTIME.block_on(Manager::new()).map_err(|e| {
         RustlerError::Term(Box::new(format!("Manager error: {}", e)))
     })?;
 
-    let adapters = runtime.block_on(manager.adapters()).map_err(|e| {
-        println!("[Rust] Failed to get adapters: {:?}", e);
+    let adapters = RUNTIME.block_on(manager.adapters()).map_err(|e| {
         RustlerError::Term(Box::new(format!("Adapter error: {}", e)))
     })?;
 
     if adapters.is_empty() {
-        println!("[Rust] No available BLE adapter found.");
         return Err(RustlerError::Term(Box::new("No available adapter")));
     }
 
     let adapter = adapters.into_iter().next().unwrap();
-    let adapter_info = runtime.block_on(adapter.adapter_info());
+    let adapter_info = RUNTIME.block_on(adapter.adapter_info());
     println!("[Rust] Adapter initialized: {:?}", adapter_info);
 
     let (event_sender, event_receiver) = mpsc::channel::<CentralEvent>(100);
+    let event_receiver = Arc::new(RwLock::new(event_receiver));
+    let event_receiver_clone = event_receiver.clone();
 
-    println!("[Rust] - Manager exists: true");
-    println!("[Rust] - Adapter exists: {:?}", adapter_info);
-    println!(
-        "[Rust] - Event sender exists: {}",
-        !event_sender.is_closed()
-    );
+    let state = CentralManagerState::new(env.pid(), manager, adapter, event_sender, event_receiver);
+    let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
 
-    let state = CentralManagerState::new(env.pid(), manager, adapter, event_sender);
-    let state_arc = Arc::new(Mutex::new(state));
-    println!("[Rust] Before creating ResourceArc ...");
-
-    let resource = ResourceArc::new(CentralRef(state_arc.clone()));
-    // let resource = CentralRef(state_arc.clone());
-
-    println!("[Rust] After creating ResourceArc ...");
-
-    let event_receiver_arc = Arc::new(Mutex::new(event_receiver)); 
-
-    let event_receiver_clone = event_receiver_arc.clone();
-    tokio::spawn(async move {
+    RUNTIME.spawn(async move {
         println!("[Rust] Inside tokio::spawn ...");
-
-        let mut event_receiver = event_receiver_clone.lock().await;
-
-        while let Some(event) = event_receiver.recv().await {
+        
+        let mut receiver = event_receiver_clone.write().await;
+        
+        while let Some(event) = receiver.recv().await {
             match event {
                 CentralEvent::DeviceDiscovered(id) => {
                     println!("[Rust] Device Discovered: {:?}", id);
@@ -134,18 +103,16 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     Ok(resource)
 }
 
+// Update start_scan to use RUNTIME as well
 #[rustler::nif]
-pub fn start_scan(
-    env: Env,
-    resource: ResourceArc<CentralRef>,
-) -> Result<ResourceArc<CentralRef>, RustlerError> {
+pub fn start_scan(resource: ResourceArc<CentralRef>) -> Result<ResourceArc<CentralRef>, RustlerError> {
     println!("[Rust] Starting BLE scan...");
 
     let resource_arc = resource.0.clone();
 
-    tokio::spawn(async move {
+    RUNTIME.spawn(async move {
         let adapter = {
-            let central_state = resource_arc.lock().await; 
+            let central_state = resource_arc.lock().unwrap();
             central_state.adapter.clone()
         };
 
@@ -172,7 +139,7 @@ pub fn start_scan(
                             let peripheral_is_connected =
                                 peripheral.is_connected().await.unwrap_or(false);
                             let properties = peripheral.properties().await.ok();
-                            let name = properties.and_then(|p| p.as_ref()?.local_name.clone()); 
+                            let name = properties.and_then(|p| p.as_ref()?.local_name.clone());
 
                             let predefined_prefixes =
                                 vec!["PressureSensor", "Arduino", "HumiditySensor"];

@@ -18,9 +18,17 @@ extern crate rustler_codegen;
 use central_manager::*;
 use peripheral::*;
 use rustler::{Env, Error as RustlerError, Term};
+use once_cell::sync::Lazy;
+use tokio::runtime::Runtime;
+
+pub static RUNTIME: Lazy<Runtime> = Lazy::new(|| {
+    tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime")
+});
 
 fn on_load(env: Env, _info: Term) -> bool {
     println!("[Rust] Initializing Rust NIF module...");
+    rustler::resource!(CentralRef, env);
+    rustler::resource!(PeripheralRef, env);
     println!("[Rust] Rust NIF module loaded successfully.");
     true
 }

@@ -1,3 +1,13 @@
+https://www.germanvelasco.com/blog/using-exunit-start-supervised-for-better-cleanup
+
+https://www.lambdafunctions.com/articles/elixir-and-rust?utm_source=elixir-merge
+
+https://www.kuon.ch/post/2022-11-26-zig-nif/
+
+https://github.com/indradb/indradb
+https://blog.rust.careers/post/which_llm_is_best_at_rust/
+
+
 https://www.monkeyvault.net/cryptography-elixir-rust/
 
 

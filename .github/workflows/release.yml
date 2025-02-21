@@ -75,8 +75,8 @@ jobs:
         # Update apt repositories
         sudo apt update
 
-        # Install dependencies
-        #sudo apt-get install -y libdbus-1-dev libdbus-1-dev:arm64 pkg-config
+        # Install dependencies libdbus-1-dev:arm64
+        sudo apt-get install -y libdbus-1-dev pkg-config
 
         # sudo dpkg -i DEB_PACKAGE
 

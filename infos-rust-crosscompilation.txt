@@ -1,3 +1,7 @@
+ RUSTLER_PRECOMPILED_FORCE_BUILD_ALL=true mix test
+
+
+
 rustc --print target-list
 
 cargo build --target aarch64-apple-darwin

@@ -1,6 +1,13 @@
- RUSTLER_PRECOMPILED_FORCE_BUILD_ALL=true mix test
+https://depot.dev/blog/github-actions-matrix-strategy
+
+RUSTLER_PRECOMPILED_FORCE_BUILD_ALL=true mix test
 
 
+rustup toolchain list
+rustup toolchain install stable-aarch64-unknown-linux-gnu
+
+cargo clean
+cross clean --target aarch64-unknown-linux-gnu
 
 rustc --print target-list
 

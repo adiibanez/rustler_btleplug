@@ -83,7 +83,6 @@ defmodule RustlerBtleplug.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      # {:rustler, "~> 0.31.0"},
       {:rustler, ">= 0.31.0", optional: true},
       {:rustler_precompiled, "~> 0.7"}
       # {:dep_from_hexpm, "~> 0.3.0"},

@@ -61,6 +61,30 @@ defmodule RustlerBtleplug.NativeTest do
   end
 
 
+  test "BLE connect to peripheral lifecycle" do
+    # {:ok, ble_resource} = Native.create_central()
+    central_resource = Native.create_central()
+    |> Native.start_scan()
+
+    assert is_reference(central_resource)
+
+    Process.sleep(500)
+
+    #{status, peripheral_resource} = central_resource
+    peripheral_resource = central_resource
+    |> Native.stop_scan()
+    |> Native.find_peripheral("b8fb0ba6-ce1d-5200-e513-a1ccb6620d43")
+    |> Native.connect()
+    |> Native.subscribe("test")
+
+    # Process.sleep(1000)
+
+    #assert status == :ok
+    assert is_reference(peripheral_resource)
+  end
+
+
+
 
 
 

@@ -73,6 +73,11 @@ pub fn subscribe(
         };
 
         let characteristics = peripheral.characteristics();
+
+        for characteristic in &characteristics {
+            println!("[Rust] Characteristic: {:?}", characteristic);
+        }
+
         let characteristic = characteristics
             .iter()
             .find(|c| c.uuid.to_string() == characteristic_uuid)

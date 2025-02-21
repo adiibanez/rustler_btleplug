@@ -23,14 +23,14 @@ use tokio::sync::RwLock;
 use tokio::sync::mpsc;
 use crate::RUNTIME;
 
-pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>); // ✅ Required by Rustler
+pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>);
 
 pub struct CentralManagerState {
     pub pid: LocalPid,
     pub adapter: Adapter,
     pub manager: Manager,
     pub event_sender: mpsc::Sender<CentralEvent>,
-    pub event_receiver: Arc<RwLock<mpsc::Receiver<CentralEvent>>>, // ✅ Async safe RwLock
+    pub event_receiver: Arc<RwLock<mpsc::Receiver<CentralEvent>>>,
 }
 
 impl CentralManagerState {

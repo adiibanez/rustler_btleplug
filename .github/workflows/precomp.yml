@@ -9,7 +9,8 @@ on:
     # Just run on main branch if "native" path changed.
     - "native/**"
     # Also run if this file changes.
-    # - ".github/workflows/release.yml"
+    #- ".github/workflows/release.yml"
+    - ".github/workflows/**"
     tags:
     # Tags will always run.
     - "*"

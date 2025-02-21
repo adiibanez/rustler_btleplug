@@ -56,7 +56,7 @@ jobs:
     steps:
 
     - name: Install Dependencies (Ubuntu Only)
-      if: matrix.os == 'ubuntu-20.04'
+      if: matrix.os == ubuntu-20.04
       run: |
         echo "Installing Ubuntu-specific dependencies..."
         apt-get update

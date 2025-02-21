@@ -14,6 +14,9 @@ defmodule RustlerBtleplug.Native do
   @spec start_scan(central()) :: {:ok, central()} | {:error, term()}
   def start_scan(_central), do: error()
 
+  @spec stop_scan(central()) :: {:ok, central()} | {:error, term()}
+  def stop_scan(_central), do: error()
+
   #def add_peripheral(_central, _mac), do: error()
 
   # get peripheral from known peripherals, eg. earlier scan

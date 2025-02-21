@@ -148,3 +148,66 @@ pub fn start_scan(resource: ResourceArc<CentralRef>) -> Result<ResourceArc<Centr
 
     Ok(resource)
 }
+
+
+#[rustler::nif]
+pub fn stop_scan(resource: ResourceArc<CentralRef>) -> Result<ResourceArc<CentralRef>, RustlerError> {
+    println!("[Rust] Stopping BLE scan...");
+
+    let resource_arc = resource.0.clone();
+
+    RUNTIME.spawn(async move {
+        let adapter = {
+            let central_state = resource_arc.lock().unwrap();
+            central_state.adapter.clone()
+        };
+
+        if let Err(e) = adapter.stop_scan().await {
+            println!("[Rust] Failed to stop scan: {:?}", e);
+            return;
+        }
+        println!("[Rust] Scan stopped successfully");
+    });
+    Ok(resource)
+}
+
+
+#[rustler::nif]
+pub fn find_peripheral(
+    env: Env,
+    resource: ResourceArc<CentralRef>,
+    uuid: String
+) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
+    println!("[Rust] Finding peripheral with UUID: {}", uuid);
+    
+    let resource_arc = resource.0.clone();
+    
+    // Get the adapter from the central state
+    let adapter = {
+        let central_state = resource_arc.lock().unwrap();
+        central_state.adapter.clone()
+    };
+
+    // Use the runtime to get peripherals
+    let peripherals = RUNTIME.block_on(async {
+        adapter.peripherals().await.map_err(|e| {
+            RustlerError::Term(Box::new(format!("Failed to get peripherals: {}", e)))
+        })
+    })?;
+
+    // Find the peripheral with matching UUID
+    for peripheral in peripherals {
+        println!("[Rust] Iterating peripheral peripheral.id(): {:?}, uuid: {:?}", peripheral.id(), uuid);
+        if peripheral.id().to_string() == uuid {
+            println!("[Rust] Found peripheral: {:?}", peripheral.id());
+            let peripheral_state = PeripheralState::new(env.pid(), peripheral);
+            return Ok(ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(peripheral_state)))));
+        }
+    }
+
+    Err(RustlerError::Term(Box::new("Peripheral not found")))
+}
+
+
+
+

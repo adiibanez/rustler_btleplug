@@ -2,13 +2,15 @@ name: Rust CI
 on:
   push:
     branches:
-      - main
+    - main
+    - refactoring
     paths:
-      - "native/**"
+    - "native/**"
   pull_request:
     paths:
-      - "native/**"
+    - "native/**"
   workflow_dispatch:
+
 
 jobs:
   lint-rust:
@@ -17,18 +19,18 @@ jobs:
     strategy:
       matrix:
         manifest:
-          - native/rustler_btleplug/Cargo.toml
+        - native/rustler_btleplug/Cargo.toml
 
     steps:
-      - uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: |
-            native/explorer
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: |
+          native/explorer
 
-      - name: run rustfmt
-        run: cargo fmt --manifest-path=${{ matrix.manifest }} --all -- --check
+    - name: run rustfmt
+      run: cargo fmt --manifest-path=${{ matrix.manifest }} --all -- --check
 
-      - name: run clippy
-        run: cargo clippy --manifest-path=${{ matrix.manifest }} -- -Dwarnings
+    - name: run clippy
+      run: cargo clippy --manifest-path=${{ matrix.manifest }} -- -Dwarnings

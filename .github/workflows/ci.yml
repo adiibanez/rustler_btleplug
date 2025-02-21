@@ -2,8 +2,8 @@ name: Elixir CI
 on:
   push:
     branches:
-    - refactoring
-    - main
+      # - refactoring
+      # - main
   pull_request:
   workflow_dispatch:
 

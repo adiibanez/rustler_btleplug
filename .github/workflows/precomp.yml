@@ -59,8 +59,8 @@ jobs:
       if: runner.os == 'Linux'
       run: |
         echo "Installing Ubuntu-specific dependencies..."
-        apt-get update
-        apt-get install -y libbluetooth-dev
+        sudo apt-get update
+        sudo apt-get install -y libbluetooth-dev
 
     - name: Checkout source code
       uses: actions/checkout@v4

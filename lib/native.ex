@@ -1,5 +1,5 @@
 defmodule RustlerBtleplug.Native do
-  use Rustler, otp_app: :rustler_btleplug, crate: :btleplug_client
+  use Rustler, otp_app: :rustler_btleplug, crate: :btleplug_client, target: System.get_env("RUSTLER_TARGET")
 
   @type central() :: reference()
   @type peripheral() :: reference()
@@ -20,7 +20,7 @@ defmodule RustlerBtleplug.Native do
   # @spec is_scanning(central()) :: {:ok, boolean()} | {:error, term()}
   # def is_scanning(_central), do: error()
 
-  #def add_peripheral(_central, _mac), do: error()
+  # def add_peripheral(_central, _mac), do: error()
 
   # get peripheral from known peripherals, eg. earlier scan
   # def get_peripheral(_central, _uuid), do: error()

@@ -111,17 +111,18 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
             let mut msg_env = OwnedEnv::new();
             match event {
                 CentralEvent::DeviceDiscovered(id) => {
-                    println!("DEBUG: Discovered device ID: {:?}", id);
-                    let id_str = id.to_string();
-                    if let Err(e) = msg_env.send_and_clear(&pid, |env| {
-                        (
-                            atoms::btleplug_device_discovered(),
-                            // format!("Device discovered: Id {:?}", id),
-                            id.to_string()
-                        )
-                            .encode(env)
+                    let uuid = id.to_string();
+                    println!("[Rust] Device discovered - UUID: {}", uuid);
+                    
+                    match msg_env.send_and_clear(&pid, |env| {
+                        (atoms::btleplug_device_discovered(), uuid).encode(env)
                     }) {
-                        println!("[Rust] Failed to send device discovery message: {:?}", e);
+                        Ok(_) => println!("[Rust] Successfully sent device discovery message to Elixir process"),
+                        Err(e) => println!(
+                            "[Rust] Failed to send device discovery message to Elixir process (Error: {:?}. \
+                            This might happen if the Elixir process has terminated.",
+                            e
+                        ),
                     }
                 }
                 CentralEvent::ManufacturerDataAdvertisement {

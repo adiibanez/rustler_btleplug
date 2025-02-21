@@ -16,7 +16,6 @@ extern crate rustler;
 extern crate rustler_codegen;
 
 use central_manager::*;
-use elixir_bridge::*;
 use peripheral::*;
 use rustler::{Env, Error as RustlerError, Term};
 

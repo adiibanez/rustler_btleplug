@@ -27,6 +27,16 @@ pub fn load(env: Env) -> bool {
 //#[tag = "central"]
 pub struct CentralRef(Arc<Mutex<CentralManagerState>>);
 
+// impl<'a> Encoder for CentralRef {
+//     fn encode<'b>(&self, env: Env<'b>) -> Term<'b> {
+//         (&self).encode(env)
+//         // match self {
+//         //     MyResult::Success(arc) => (ok(), arc).encode(env),
+//         //     MyResult::Failure(msg) => (error(), msg).encode(env),
+//         // }
+//     }
+// }
+
 pub struct CentralManagerState {
     pub pid: LocalPid,
     pub adapter: Adapter,

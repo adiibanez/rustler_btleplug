@@ -23,6 +23,8 @@ defmodule RustlerBtleplug.MixProject do
 
       mapping = Map.get(@nerves_rust_target_triple_mapping, String.to_atom(target_triple))
 
+      IO.puts("RUSTLER_TARGET mapping #{inspect(mapping)}")
+
       if is_binary(mapping) do
         System.put_env("RUSTLER_TARGET", mapping)
       end

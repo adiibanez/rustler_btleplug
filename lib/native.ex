@@ -1,5 +1,12 @@
 defmodule RustlerBtleplug.Native do
-  use Rustler, otp_app: :rustler_btleplug, crate: :btleplug_client, target: System.get_env("RUSTLER_TARGET")
+  # use Rustler, otp_app: :rustler_btleplug, crate: :btleplug_client, target: System.get_env("RUSTLER_TARGET")
+
+  use RustlerPrecompiled,
+    otp_app: :rustler_btleplug,
+    crate: :btleplug_client,
+    base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v0.0.1",
+    force_build: System.get_env("RUSTLER_PRECOMPILATION_EXAMPLE_BUILD") in ["1", "true"],
+    version: "0.0.1"
 
   @type central() :: reference()
   @type peripheral() :: reference()

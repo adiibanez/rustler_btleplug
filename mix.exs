@@ -25,9 +25,9 @@ defmodule RustlerBtleplug.MixProject do
 
       IO.puts("RUSTLER_TARGET mapping #{inspect(mapping)}")
 
-      if is_binary(mapping) do
-        System.put_env("RUSTLER_TARGET", mapping)
-      end
+      # if is_binary(mapping) do
+      #   System.put_env("RUSTLER_TARGET", mapping)
+      # end
     end
 
     [
@@ -50,18 +50,26 @@ defmodule RustlerBtleplug.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:rustler, "~> 0.31.0"}
+      #{:rustler, "~> 0.31.0"},
+      {:rustler, ">= 0.31.0", optional: true}
+      {:rustler_precompiled, "~> 0.7"}
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
     ]
   end
 
-  #  defp aliases do
-  #    [
-  #      fmt: [
-  #        "format",
-  #        "cmd cargo fmt --manifest-path native/btleplug_client/Cargo.toml"
-  #      ]
-  #    ]
-  #  end
+  defp aliases do
+    [
+      "rust.lint": [
+        "cmd cargo clippy --manifest-path=native/btleplug_client/Cargo.toml -- -Dwarnings"
+      ],
+      "rust.fmt": ["cmd cargo fmt --manifest-path=native/btleplug_client/Cargo.toml --all"],
+      # "localstack.setup": ["cmd ./test/support/setup-localstack.sh"],
+      ci: ["format", "rust.fmt", "rust.lint", "test"],
+      fmt: [
+         "format",
+         "rust.fmt",
+       ]
+    ]
+  end
 end

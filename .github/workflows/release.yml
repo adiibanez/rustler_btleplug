@@ -135,15 +135,15 @@ jobs:
       shell: bash
       run: |
         # Generate SHA256 checksum
-        SHA256SUM=$(sha256sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+        SHA256SUM=$(openssl dgst -sha256 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
         echo "SHA256SUM=$SHA256SUM" >> $GITHUB_ENV
 
         # Generate SHA1 checksum
-        SHA1SUM=$(sha1sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+        SHA1SUM=$(openssl dgst -sha1 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
         echo "SHA1SUM=$SHA1SUM" >> $GITHUB_ENV
 
         # Generate MD5 checksum
-        MD5SUM=$(md5sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+        MD5SUM=$(openssl dgst -md5 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
         echo "MD5SUM=$MD5SUM" >> $GITHUB_ENV
 
     - name: Artifact attestation

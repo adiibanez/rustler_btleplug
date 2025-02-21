@@ -1,0 +1,45 @@
+https://github.com/diwic/dbus-rs/blob/master/libdbus-sys/cross_compile.md
+
+https://depot.dev/blog/github-actions-matrix-strategy
+https://stackoverflow.com/questions/57946173/github-actions-run-step-on-specific-os
+
+RUSTLER_PRECOMPILED_FORCE_BUILD_ALL=true mix test
+
+rustup toolchain list
+rustup toolchain install stable-aarch64-unknown-linux-gnu
+
+cargo clean
+cross clean --target aarch64-unknown-linux-gnu
+
+rustc --print target-list
+
+cargo build --target aarch64-apple-darwin
+
+
+git push --delete origin v0.0.1-alpha
+
+
+aarch64-apple-darwin
+aarch64-apple-ios
+aarch64-apple-ios-macabi
+aarch64-apple-ios-sim
+aarch64-apple-tvos
+aarch64-apple-tvos-sim
+aarch64-apple-visionos
+aarch64-apple-visionos-sim
+aarch64-apple-watchos
+aarch64-apple-watchos-sim
+arm64_32-apple-watchos
+arm64e-apple-darwin
+arm64e-apple-ios
+arm64e-apple-tvos
+armv7k-apple-watchos
+armv7s-apple-ios
+i386-apple-ios
+i686-apple-darwin
+x86_64-apple-darwin
+x86_64-apple-ios
+x86_64-apple-ios-macabi
+x86_64-apple-tvos
+x86_64-apple-watchos-sim
+x86_64h-apple-darwin

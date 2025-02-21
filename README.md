@@ -10,7 +10,7 @@ by adding `rustler_btleplug` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:rustler_btleplug, "~> 0.1.0"}
+    {:rustler_btleplug, "~> 0.0.0"}
   ]
 end
 ```

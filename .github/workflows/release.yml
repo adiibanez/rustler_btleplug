@@ -39,18 +39,17 @@ jobs:
         - { target: aarch64-apple-darwin, os: macos-13 }
         - { target: aarch64-unknown-linux-gnu, os: ubuntu-20.04, use-cross: true }
         # - { target: aarch64-unknown-linux-gnu, os: ubuntu-24.04-arm, use-cross: true }
-        #- { target: aarch64-unknown-linux-musl, os: ubuntu-20.04, use-cross: true }
+        - { target: aarch64-unknown-linux-musl, os: ubuntu-20.04, use-cross: true }
         - { target: x86_64-apple-darwin, os: macos-13 }
-        # - { target: x86_64-pc-windows-gnu, os: windows-2022, rustflags: "-C target-feature=+fxsr,+sse,+sse2,+sse3,+ssse3,+sse4.1,+sse4.2,+popcnt,+avx,+fma" }
-
+        - { target: x86_64-pc-windows-gnu, os: windows-2022, rustflags: "-C target-feature=+fxsr,+sse,+sse2,+sse3,+ssse3,+sse4.1,+sse4.2,+popcnt,+avx,+fma" }
         - { target: x86_64-pc-windows-gnu, os: windows-2022, variant: "legacy_cpu" }
         - { target: x86_64-pc-windows-msvc, os: windows-2019, rustflags: "-C target-feature=+fxsr,+sse,+sse2,+sse3,+ssse3,+sse4.1,+sse4.2,+popcnt,+avx,+fma" }
-        # - { target: x86_64-pc-windows-msvc, os: windows-2019, variant: "legacy_cpu" }
-        # - { target: x86_64-unknown-freebsd, os: ubuntu-22.04, use-cross: true, rustflags: "-C target-feature=+fxsr,+sse,+sse2,+sse3,+ssse3,+sse4.1,+sse4.2,+popcnt,+avx,+fma" }
-        # - { target: x86_64-unknown-freebsd, os: ubuntu-22.04, use-cross: true, variant: "legacy_cpu" }
+        - { target: x86_64-pc-windows-msvc, os: windows-2019, variant: "legacy_cpu" }
+        - { target: x86_64-unknown-freebsd, os: ubuntu-22.04, use-cross: true, rustflags: "-C target-feature=+fxsr,+sse,+sse2,+sse3,+ssse3,+sse4.1,+sse4.2,+popcnt,+avx,+fma" }
+        - { target: x86_64-unknown-freebsd, os: ubuntu-22.04, use-cross: true, variant: "legacy_cpu" }
         - { target: x86_64-unknown-linux-gnu, os: ubuntu-20.04, rustflags: "-C target-feature=+fxsr,+sse,+sse2,+sse3,+ssse3,+sse4.1,+sse4.2,+popcnt,+avx,+fma" }
         - { target: x86_64-unknown-linux-gnu, os: ubuntu-20.04, variant: "legacy_cpu" }
-        # - { target: x86_64-unknown-linux-musl, os: ubuntu-20.04, use-cross: true }
+        - { target: x86_64-unknown-linux-musl, os: ubuntu-20.04, use-cross: true }
 
     steps:
     - name: Checkout source code
@@ -94,50 +93,6 @@ jobs:
         cargo-args: ${{ matrix.job.cargo-args }}
         variant: ${{ matrix.job.variant }}
 
-    # - name: Generate Checksums (Linux/macOS)
-    #   if: runner.os != 'Windows'
-    #   shell: bash
-    #   run: |
-    #     # Generate SHA256 checksum
-    #     if [[ "$RUNNER_OS" == "Linux" ]]; then
-    #       SHA256SUM=$(sha256sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
-    #     elif [[ "$RUNNER_OS" == "macOS" ]]; then
-    #       SHA256SUM=$(openssl dgst -sha256 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
-    #     fi
-    #     echo "SHA256SUM=$SHA256SUM" >> $GITHUB_ENV
-
-    #     # Generate SHA1 checksum
-    #     if [[ "$RUNNER_OS" == "Linux" ]]; then
-    #       SHA1SUM=$(sha1sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
-    #     elif [[ "$RUNNER_OS" == "macOS" ]]; then
-    #       SHA1SUM=$(openssl dgst -sha1 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
-    #     fi
-    #     echo "SHA1SUM=$SHA1SUM" >> $GITHUB_ENV
-
-    #     # Generate MD5 checksum
-    #     if [[ "$RUNNER_OS" == "Linux" ]]; then
-    #       MD5SUM=$(md5sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
-    #     elif [[ "$RUNNER_OS" == "macOS" ]]; then
-    #       MD5SUM=$(openssl dgst -md5 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
-    #     fi
-    #     echo "MD5SUM=$MD5SUM" >> $GITHUB_ENV
-
-    # - name: Generate Checksums (Windows)
-    #   if: runner.os == 'Windows'
-    #   shell: pwsh
-    #   run: |
-    #     # Generate SHA256 checksum
-    #     $SHA256SUM = Get-FileHash -Algorithm SHA256 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash
-    #     echo "SHA256SUM=$SHA256SUM" >> $GITHUB_ENV
-
-    #     # Generate SHA1 checksum
-    #     $SHA1SUM = Get-FileHash -Algorithm SHA1 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash
-    #     echo "SHA1SUM=$SHA1SUM" >> $GITHUB_ENV
-
-    #     # Generate MD5 checksum
-    #     $MD5SUM = Get-FileHash -Algorithm MD5 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash
-    #     echo "MD5SUM=$MD5SUM" >> $GITHUB_ENV
-
     - name: Artifact attestation
       uses: actions/attest-build-provenance@v1
       with:
@@ -149,18 +104,6 @@ jobs:
         name: ${{ steps.build-crate.outputs.file-name }}
         path: ${{ steps.build-crate.outputs.file-path }}
         retention-days: 5
-
-    # - name: Create Release Notes with Checksums
-    #   if: startsWith(github.ref, 'refs/tags/')
-    #   run: |
-    #     RELEASE_BODY="${{ github.event.release.body }}\n\n"
-    #     RELEASE_BODY+="- SHA256 Checksum: ${{ env.SHA256SUM }}\n"
-    #     RELEASE_BODY+="- SHA1 Checksum: ${{ env.SHA1SUM }}\n"
-    #     RELEASE_BODY+="- MD5 Checksum: ${{ env.MD5SUM }}\n"
-
-    #     echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
-    #     echo "$RELEASE_BODY" >> $GITHUB_ENV
-    #     echo "EOF" >> $GITHUB_ENV
 
     - name: Publish archives and packages
       uses: softprops/action-gh-release@v2
@@ -183,42 +126,3 @@ jobs:
       env:
         # You must enable write permission in github.com/user/repo/settings/actions -> Workflow permissions -> Read and write permissions
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    # - name: Publish archives and packages
-    #   if: startsWith(github.ref, 'refs/tags/')
-    #   shell: bash
-    #   env:
-    #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    #   run: |
-    #     # Determine the release body based on OS
-    #     RELEASE_BODY="${{ github.event.release.body }}\n\n"
-    #     RELEASE_BODY+="- SHA256 Checksum: ${{ env.SHA256SUM }}\n"
-    #     RELEASE_BODY+="- SHA1 Checksum: ${{ env.SHA1SUM }}\n"
-    #     RELEASE_BODY+="- MD5 Checksum: ${{ env.MD5SUM }}\n"
-
-    #     # Create the release using gh release create
-    #     gh release create "${{ github.ref_name }}" \
-    #       --repo="${{ github.repository }}" \
-    #       --title="${{ github.repository }} ${{ github.ref_name }}" \
-    #       --notes "$RELEASE_BODY" \
-    #       "${{ steps.build-crate.outputs.file-path }}"
-    # - name: Publish archives and packages (Default)
-    #   if: startsWith(github.ref, 'refs/tags/') && runner.os != 'Windows'
-    #   uses: softprops/action-gh-release@v2
-    #   with:
-    #     files: |
-    #       ${{ steps.build-crate.outputs.file-path }}
-    #     body: ${{ env.RELEASE_BODY }}
-
-    # - name: Publish archives and packages (Windows)
-    #   if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
-    #   shell: pwsh
-    #   run: |
-    #     # Windows-specific publishing logic here
-    #     echo "Publishing for Windows..."
-
-    #     # Example: Set environment variable (as suggested in Stack Overflow link)
-    #     [Environment]::SetEnvironmentVariable("RELEASE_BODY", "${{ env.RELEASE_BODY }}", "Process")
-
-    #     # Example: Use a different release action or command
-    #     gh release create ${{ github.ref_name }} --title "Release ${{ github.ref_name }}" --body "$Env:RELEASE_BODY" ${{ steps.build-crate.outputs.file-path }}
-    #     echo "Completed Windows Specific Task"

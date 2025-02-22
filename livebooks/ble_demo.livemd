@@ -1,0 +1,95 @@
+# Untitled notebook
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.12.0"},
+  {:rustler_btleplug, "~> 0.0.0"}
+])
+```
+
+## Section
+
+```elixir
+ExUnit.configure(exclude: [:skip])
+ExUnit.start(autorun: false)
+```
+
+```elixir
+require Logger
+alias RustlerBtleplug.Native
+
+defmodule RustlerBtleplug.Demo2 do
+  use ExUnit.Case, async: false
+
+  @timeout 1000
+
+  test "Central setup" do
+    central_resource =
+      Native.create_central()
+
+    assert is_reference(central_resource)
+
+    assert_receive {:btleplug_device_updated, _msg},
+                   @timeout,
+                   "No :btleplug_device_updated received"
+
+    assert_receive {:btleplug_device_connected, _msg},
+                   @timeout,
+                   "No :btleplug_device_connected received"
+
+    # assert_receive {:btleplug_services_advertisement, _msg}, @timeout, "No :btleplug_services_advertisement received"
+    # assert_receive {:btleplug_service_data_advertisement, _msg}, @timeout, "No :btleplug_service_data_advertisement received"
+    # assert_receive {:btleplug_device_connected, _msg}, @timeout, "No :btleplug_device_connected received"
+    assert_receive {:btleplug_characteristic_value_changed, _uuid, _value},
+                   @timeout,
+                   "No :btleplug_characteristic_value_changed received"
+
+    Process.sleep(20000)
+
+    messages = :erlang.process_info(self(), :messages)
+    IO.inspect(messages, label: "messages")
+  end
+
+  #@tag :skip
+  test "Connect to known device" do
+    peripheral_resource =
+      Native.create_central()
+      |> Native.start_scan()
+      |> Native.find_peripheral_by_name("Pressure")
+      |> Native.connect()
+      |> Native.subscribe("61d20a90-71a1-11ea-ab12-0800200c9a66")
+
+    assert is_reference(peripheral_resource)
+
+    Process.sleep(1000)
+
+    assert_receive {:btleplug_device_updated, _msg},
+                   @timeout,
+                   "No :btleplug_device_updated received"
+
+    assert_receive {:btleplug_device_connected, _msg},
+                   @timeout,
+                   "No :btleplug_device_connected received"
+
+    # assert_receive {:btleplug_services_advertisement, _msg}, @timeout, "No :btleplug_services_advertisement received"
+    # assert_receive {:btleplug_service_data_advertisement, _msg}, @timeout, "No :btleplug_service_data_advertisement received"
+    # assert_receive {:btleplug_device_connected, _msg}, @timeout, "No :btleplug_device_connected received"
+    assert_receive {:btleplug_characteristic_value_changed, _uuid, _value},
+                   @timeout,
+                   "No :btleplug_characteristic_value_changed received"
+
+    messages = :erlang.process_info(self(), :messages)
+    IO.inspect(messages, label: "messages")
+  end
+
+  # def handle_info(msg) do
+  #  IO.puts(inspect(msg))
+  # end
+end
+```
+
+```elixir
+ExUnit.run()
+
+IO.puts(inspect(self()))
+```

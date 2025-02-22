@@ -19,11 +19,12 @@ defmodule RustlerBtleplug.Native do
   @type uuid() :: String.t()
   @type mac() :: String.t()
 
+
   @spec init(map()) :: {:ok, central()} | {:error, term()}
   def init(_opts \\ %{}), do: error()
 
-  @spec create_central() :: {:ok, central()} | {:error, term()}
-  def create_central(), do: error()
+  @spec create_central(Pid.t()) :: {:ok, central()} | {:error, term()}
+  def create_central(_pid \\ self()), do: error()
   @spec start_scan(central(), Number.t()) :: {:ok, central()} | {:error, term()}
   def start_scan(_central, _ms \\ 1000), do: error()
 

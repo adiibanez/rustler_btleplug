@@ -51,7 +51,7 @@ impl CentralManagerState {
 }
 
 #[rustler::nif]
-pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError> {
+pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>, RustlerError> {
     info!("Creating CentralManager...");
 
     let manager = RUNTIME
@@ -76,14 +76,14 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
     let event_sender_clone = event_sender.clone();
 
     let state = CentralManagerState::new(
-        env.pid(),
+        pid,
         manager,
         adapter.clone(),
         event_sender,
         event_receiver,
     );
     let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
-    let pid = env.pid();
+    // let pid = env.pid();
 
     // Spawn a task to handle adapter events
     RUNTIME.spawn(async move {
@@ -362,11 +362,10 @@ pub fn find_peripheral(
     info!("Looking for peripheral with UUID: {}", uuid);
 
     let resource_arc = resource.0.clone();
+    let central_state = resource_arc.lock().unwrap();
 
-    let adapter = {
-        let central_state = resource_arc.lock().unwrap();
-        central_state.adapter.clone()
-    };
+    let adapter = central_state.adapter.clone();
+    let pid = central_state.pid;
 
     let peripherals = RUNTIME.block_on(async {
         adapter
@@ -384,7 +383,7 @@ pub fn find_peripheral(
         );
         if peripheral.id().to_string() == uuid {
             info!("Found peripheral: {:?}", peripheral.id());
-            let peripheral_state = PeripheralState::new(env.pid(), peripheral);
+            let peripheral_state = PeripheralState::new(pid, peripheral);
             return Ok(ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(
                 peripheral_state,
             )))));
@@ -394,7 +393,7 @@ pub fn find_peripheral(
     Err(RustlerError::Term(Box::new("Peripheral not found")))
 }
 
-#[rustler::nif] // ✅ No need for "DirtyIo"
+#[rustler::nif]
 pub fn find_peripheral_by_name(
     env: Env<'_>,
     resource: ResourceArc<CentralRef>,
@@ -402,18 +401,16 @@ pub fn find_peripheral_by_name(
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     info!("Looking for peripheral with name: {}", name);
 
-    let adapter = {
-        let central_state = resource.0.lock().unwrap();
-        central_state.adapter.clone()
-    };
+    let resource_arc = resource.0.clone();
+    let central_state = resource_arc.lock().unwrap();
+    let adapter = central_state.adapter.clone();
+    let pid = central_state.pid;
 
-    // ✅ Run async function synchronously
     let peripherals = RUNTIME
         .block_on(adapter.peripherals())
         .map_err(|e| RustlerError::Term(Box::new(format!("Failed to get peripherals: {}", e))))?;
 
     for peripheral in peripherals {
-        // ✅ Run async call inside block_on()
         let properties = RUNTIME.block_on(peripheral.properties()).map_err(|e| {
             RustlerError::Term(Box::new(format!("Failed to get properties: {}", e)))
         })?;
@@ -438,6 +435,5 @@ pub fn find_peripheral_by_name(
             }
         }
     }
-
     Err(RustlerError::Term(Box::new("Peripheral not found")))
 }

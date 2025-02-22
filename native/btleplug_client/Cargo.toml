@@ -28,7 +28,7 @@ chrono = "0.4.3"
 # { git = "https://github.com/uuid-rs/uuid.git", branch = "main" } # "1.4" #{ version = "1.4", features = ["serde"] }
 
 btleplug = { version = "0.11.7", features = ["serde"] }
-bluster = {git = "https://github.com/adiibanez/bluster", branch = "bump_uuid"}
+#bluster = {git = "https://github.com/adiibanez/bluster", branch = "bump_uuid"}
 #bluster = {path = "../../../bluster"}
 
 # some potential gatt characteristics data sources

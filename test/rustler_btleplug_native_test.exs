@@ -155,4 +155,13 @@ defmodule RustlerBtleplug.NativeTest do
 
     # assert_receive {:btleplug_device_discovered, peripheral_id}
   end
+
+  test "Create GATT peripheral" do
+    gatt_peripheral_resource =
+      Native.create_gatt_peripheral("hello_bluster")
+
+    assert is_reference(gatt_peripheral_resource)
+
+    Process.sleep(10000)
+  end
 end

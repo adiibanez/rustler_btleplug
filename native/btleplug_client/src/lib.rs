@@ -25,6 +25,7 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 mod atoms;
 mod central_manager;
+mod gatt_peripheral;
 mod peripheral;
 
 #[macro_use]
@@ -33,6 +34,7 @@ extern crate rustler;
 extern crate rustler_codegen;
 
 use central_manager::*;
+use gatt_peripheral::*;
 use once_cell::sync::Lazy;
 use peripheral::*;
 use rustler::{Env, Error as RustlerError, Term};
@@ -46,6 +48,7 @@ fn on_load(env: Env, _info: Term) -> bool {
     println!("[Rust] Initializing Rust NIF module...");
     rustler::resource!(CentralRef, env);
     rustler::resource!(PeripheralRef, env);
+    rustler::resource!(GattPeripheralRef, env);
     println!("[Rust] Rust NIF module loaded successfully.");
     true
 }

@@ -58,3 +58,9 @@ btleplug = { version = "0.11.7", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 btleplug = { version = "0.11.7", default-features = false }
+
+[target.aarch64-unknown-linux-musl.lib]
+crate-type = ["staticlib"]
+
+[target.x86_64-unknown-linux-musl.lib]
+crate-type = ["staticlib"]

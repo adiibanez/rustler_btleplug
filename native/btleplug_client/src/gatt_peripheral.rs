@@ -121,7 +121,7 @@ async fn setup_service_and_start_advertising(
     println!("[Rust] Adding service to peripheral...");
 
     {
-        let mut peripheral_guard = peripheral.write().await;
+        let peripheral_guard = peripheral.write().await;
         if let Err(e) = peripheral_guard.add_service(&Service::new(service_uuid, true, characteristics)) {
             println!("[Rust] ❌ Failed to add service: {:?}", e);
             return Err(RustlerError::Atom("failed_to_add_service"));
@@ -131,7 +131,7 @@ async fn setup_service_and_start_advertising(
     println!("[Rust] Service added successfully. Starting advertising...");
 
     {
-    let mut peripheral_guard = peripheral.write().await;
+    let peripheral_guard = peripheral.write().await;
     println!("[Rust] Attempting to start advertising in discoverable mode...");
     
     match peripheral_guard.start_advertising(&peripheral_name, &[service_uuid]).await {

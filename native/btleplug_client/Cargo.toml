@@ -76,5 +76,5 @@ btleplug = { version = "0.11.7", default-features = false }
 mimalloc = { version = "*", default-features = false }
 
 
-[workspace.lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
+#[workspace.lints.rust]
+#unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }

@@ -6,16 +6,6 @@
 #![allow(non_local_definitions)]
 // #[rustler::nif(schedule = "DirtyCpu")]
 
-// #[cfg(not(target_env = "musl"))]
-// #[link(name = "btleplug_client")]
-// extern {}
-
-// #[cfg(target_env = "musl")]
-// #[link(name = "btleplug_client", kind = "static")]
-// extern {}
-
-
-
 // MiMalloc won´t compile on Windows with the GCC compiler.
 // On Linux with Musl it won´t load correctly.
 #[cfg(not(any(
@@ -30,8 +20,6 @@ use mimalloc::MiMalloc;
 )))]
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
-
-
 
 mod atoms;
 mod central_manager;

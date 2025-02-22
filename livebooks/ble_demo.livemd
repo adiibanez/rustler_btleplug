@@ -9,10 +9,14 @@ Mix.install([
 
 ## Section
 
+<!-- livebook:{"reevaluate_automatically":true} -->
+
 ```elixir
 ExUnit.configure(exclude: [:skip])
 ExUnit.start(autorun: false)
 ```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
 
 ```elixir
 require Logger
@@ -26,6 +30,7 @@ defmodule RustlerBtleplug.Demo2 do
   test "Central setup" do
     central_resource =
       Native.create_central()
+      |> Native.start_scan()
 
     assert is_reference(central_resource)
 
@@ -87,6 +92,8 @@ defmodule RustlerBtleplug.Demo2 do
   # end
 end
 ```
+
+<!-- livebook:{"reevaluate_automatically":true} -->
 
 ```elixir
 ExUnit.run()

@@ -16,6 +16,9 @@ nif_version_2_15 = ["rustler/nif_version_2_15"]
 nif_version_2_16 = ["rustler/nif_version_2_16"]
 nif_version_2_17 = ["rustler/nif_version_2_17"]
 
+[build-dependencies]
+rustc_version = "0.4"
+
 [dependencies]
 btleplug = { version = "0.11.7", features = ["serde"] }
 #bluster = "0.2.0"
@@ -58,9 +61,3 @@ btleplug = { version = "0.11.7", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 btleplug = { version = "0.11.7", default-features = false }
-
-[target.aarch64-unknown-linux-musl.lib]
-crate-type = ["staticlib"]
-
-[target.x86_64-unknown-linux-musl.lib]
-crate-type = ["staticlib"]

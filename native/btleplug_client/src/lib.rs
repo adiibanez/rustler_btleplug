@@ -9,14 +9,16 @@
 // MiMalloc won´t compile on Windows with the GCC compiler.
 // On Linux with Musl it won´t load correctly.
 #[cfg(not(any(
-    all(windows, target_env = "gnu"),
-    all(target_os = "linux", target_env = "musl")
+    target_os = "windows",
+    target_os = "macos",
+    all(target_os = "linux", not(target_env = "musl"))
 )))]
 use mimalloc::MiMalloc;
 
 #[cfg(not(any(
-    all(windows, target_env = "gnu"),
-    all(target_os = "linux", target_env = "musl")
+    target_os = "windows",
+    target_os = "macos",
+    all(target_os = "linux", not(target_env = "musl"))
 )))]
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;

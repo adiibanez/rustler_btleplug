@@ -42,6 +42,9 @@ defmodule RustlerBtleplug.Native do
   @spec find_peripheral(central(), uuid()) :: {:ok, peripheral()} | {:error, term()}
   def find_peripheral(_central, _uuid), do: error()
 
+  @spec find_peripheral_by_name(central(), String.t()) :: {:ok, peripheral()} | {:error, term()}
+  def find_peripheral_by_name(_central, _name), do: error()
+
   @spec connect(peripheral()) :: {:ok, peripheral()} | {:error, term()}
   def connect(_peripheral), do: error()
   def subscribe(_peripheral, _characteristics), do: error()

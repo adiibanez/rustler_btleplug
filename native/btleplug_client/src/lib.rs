@@ -36,7 +36,16 @@ extern crate rustler;
 extern crate rustler_codegen;
 
 use log::{debug, error, info, warn};
-use pretty_env_logger;
+
+// use pretty_env_logger;
+// use pretty_env_logger::env_logger;
+// use pretty_env_logger::formatted_builder;
+// use crate::env_logger::Builder;
+// use log::LevelFilter;
+
+use pretty_env_logger::env_logger;
+use log::LevelFilter;
+use std::io::Write;
 
 use central_manager::*;
 use gatt_peripheral::*;
@@ -50,7 +59,26 @@ pub static RUNTIME: Lazy<Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime"));
 
 fn on_load(env: Env, _info: Term) -> bool {
-    pretty_env_logger::init();
+
+    // pretty_env_logger::init();
+
+    init_logger();
+
+    // formatted_builder()
+    //     .format(|buf, record| {
+    //         writeln!(
+    //             buf,
+    //             "[{}] {}:{} [{}] - {}",
+    //             chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+    //             record.file().unwrap_or("unknown"),
+    //             record.line().unwrap_or(0),
+    //             record.level(),
+    //             record.args()
+    //         )
+    //     })
+    //     .target(env_logger::Target::Stdout)  // ✅ Ensure it goes to stdout
+    //     .init();
+    // init_logger();
 
     println!("[Rust] Initializing Rust NIF module...");
     rustler::resource!(CentralRef, env);
@@ -80,6 +108,29 @@ fn get_map() -> HashMap<String, HashMap<String, String>> {
     map.insert("outer_key1".to_string(), inner_map);
     map
     //atoms::ok().encode(env)
+}
+
+
+
+fn init_logger() {
+    let mut builder = env_logger::Builder::from_default_env();
+
+    builder
+        .filter_level(LevelFilter::Debug)  // ✅ Set log level
+        .format(|buf, record| {  // ✅ Enable colors manually
+            let level_style = buf.default_level_style(record.level()); // 🔥 Colorize log level
+            writeln!(
+                buf,
+                "[{}] {}:{} [{}] - {}",
+                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
+                record.file().unwrap_or("unknown"),
+                record.line().unwrap_or(0),
+                level_style.value(record.level()),  // ✅ Apply color
+                record.args()
+            )
+        })
+        .target(env_logger::Target::Stdout) // ✅ Ensure logs go to stdout
+        .init();
 }
 
 rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load);

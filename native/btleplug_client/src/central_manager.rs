@@ -393,3 +393,51 @@ pub fn find_peripheral(
 
     Err(RustlerError::Term(Box::new("Peripheral not found")))
 }
+
+#[rustler::nif] // ✅ No need for "DirtyIo"
+pub fn find_peripheral_by_name(
+    env: Env<'_>,
+    resource: ResourceArc<CentralRef>,
+    name: String,
+) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
+    info!("Looking for peripheral with name: {}", name);
+
+    let adapter = {
+        let central_state = resource.0.lock().unwrap();
+        central_state.adapter.clone()
+    };
+
+    // ✅ Run async function synchronously
+    let peripherals = RUNTIME
+        .block_on(adapter.peripherals())
+        .map_err(|e| RustlerError::Term(Box::new(format!("Failed to get peripherals: {}", e))))?;
+
+    for peripheral in peripherals {
+        // ✅ Run async call inside block_on()
+        let properties = RUNTIME.block_on(peripheral.properties()).map_err(|e| {
+            RustlerError::Term(Box::new(format!("Failed to get properties: {}", e)))
+        })?;
+
+        if let Some(peripheral_name) = properties.unwrap().local_name {
+            let search_name = name.trim();
+            let peripheral_name_trimmed = peripheral_name.trim();
+
+            let contains_match = peripheral_name_trimmed.contains(search_name);
+
+            info!(
+                "Iterating peripheral name: {:?}, searching for: {:?}, contains: {:?}",
+                peripheral_name_trimmed, search_name, contains_match
+            );
+
+            if contains_match {
+                info!("✅ Found peripheral: {:?}", peripheral.id());
+                let peripheral_state = PeripheralState::new(env.pid(), peripheral);
+                return Ok(ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(
+                    peripheral_state,
+                )))));
+            }
+        }
+    }
+
+    Err(RustlerError::Term(Box::new("Peripheral not found")))
+}

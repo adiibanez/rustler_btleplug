@@ -2,6 +2,8 @@ defmodule RustlerBtleplug.NativeTest do
   use ExUnit.Case, async: false
   alias RustlerBtleplug.Native
 
+  @capture_logs true
+
   test "Test string" do
     # assert {:ok, resource} = Native.create_central()
     assert resource = Native.test_string("whatever")
@@ -129,6 +131,8 @@ defmodule RustlerBtleplug.NativeTest do
 
     assert_receive {:btleplug_scan_started, _msg}
 
+    Process.sleep(2000)
+
     receive do
       {:btleplug_device_discovered, peripheral_id} ->
         :ok
@@ -140,24 +144,25 @@ defmodule RustlerBtleplug.NativeTest do
         # {status, peripheral_resource} = central_resource
         peripheral_resource =
           central_resource
-          |> Native.stop_scan()
-          |> Native.find_peripheral(peripheral_id)
+          |> Native.find_peripheral_by_name("Pressure")
           |> Native.connect()
+          |> Native.subscribe("all")
+
+        assert is_reference(peripheral_resource)
 
         Process.sleep(1000)
 
         messages = :erlang.process_info(self(), :messages)
         IO.inspect(messages, label: "messages")
 
-
         # assert_receive {:btleplug_device_updated, _msg}
         # assert_receive {:btleplug_services_advertisement, _msg}
         # assert_receive {:btleplug_service_data_advertisement, _msg}
         # assert_receive {:btleplug_btleplug_device_connected, _msg}
 
-        peripheral_subscribed =
-          peripheral_resource
-          |> Native.subscribe("all")
+        # peripheral_subscribed =
+        #   peripheral_resource
+        #   |> Native.subscribe("all")
 
         Process.sleep(5000)
 

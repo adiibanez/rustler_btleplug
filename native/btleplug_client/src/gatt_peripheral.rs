@@ -5,13 +5,16 @@
 #![allow(unused_must_use)]
 #![allow(non_local_definitions)]
 
+use log::{debug, error, info, warn};
+use pretty_env_logger;
+
 use futures::{channel::mpsc::channel, prelude::*};
 use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, ResourceArc, Term};
 use std::{
     collections::HashSet,
-    sync::{Arc, Mutex, atomic},
+    sync::{atomic, Arc, Mutex},
 };
-use uuid::{Uuid, Builder, Bytes, Variant};
+use uuid::{Builder, Bytes, Uuid, Variant};
 
 use bluster::{
     gatt::{
@@ -40,7 +43,11 @@ pub struct GattPeripheralState {
 }
 
 impl GattPeripheralState {
-    pub fn new(pid: LocalPid, peripheral_name: String, peripheral: Arc<RwLock<Peripheral>>) -> Self {
+    pub fn new(
+        pid: LocalPid,
+        peripheral_name: String,
+        peripheral: Arc<RwLock<Peripheral>>,
+    ) -> Self {
         GattPeripheralState {
             pid,
             peripheral_name,
@@ -51,7 +58,7 @@ impl GattPeripheralState {
 
 impl Drop for GattPeripheralState {
     fn drop(&mut self) {
-        println!("[Rust] GattPeripheralState destructor called.");
+        debug!("[Rust] GattPeripheralState destructor called.");
     }
 }
 
@@ -61,39 +68,59 @@ pub fn create_gatt_peripheral(
     peripheral_name: String,
     advertising_duration_ms: u64,
 ) -> Result<ResourceArc<GattPeripheralRef>, rustler::Error> {
-    println!("[Rust] Creating GATT peripheral with name: {}", peripheral_name);
-    
-    let peripheral = RUNTIME.block_on(Peripheral::new())
+    info!(
+        "[Rust] Creating GATT peripheral with name: {}",
+        peripheral_name
+    );
+
+    let peripheral = RUNTIME
+        .block_on(Peripheral::new())
         .map_err(|_| RustlerError::Atom("failed_to_create_peripheral"))?;
 
-    println!("[Rust] Peripheral created successfully");
+    info!("[Rust] Peripheral created successfully");
 
-    let peripheral_arc = Arc::new(RwLock::new(peripheral));  
+    let peripheral_arc = Arc::new(RwLock::new(peripheral));
     let state = GattPeripheralState::new(env.pid(), peripheral_name.clone(), peripheral_arc);
     let resource = ResourceArc::new(GattPeripheralRef(Arc::new(Mutex::new(state))));
 
     let (sender_characteristic, receiver_characteristic) = channel(1);
     let (sender_descriptor, receiver_descriptor) = channel(1);
 
-    println!("[Rust] Creating characteristics and descriptors...");
+    info!("[Rust] Creating characteristics and descriptors...");
     let characteristics = create_characteristics(sender_characteristic, sender_descriptor);
     let service_uuid = short_uuid_to_uuid(0x1234);
     let state_ref = resource.0.clone();
 
     let (peripheral_name, peripheral) = {
         let state_guard = state_ref.lock().unwrap();
-        println!("[Rust] Locked state. Peripheral name: {}", state_guard.peripheral_name);
-        (state_guard.peripheral_name.clone(), state_guard.peripheral.clone())
+        info!(
+            "[Rust] Locked state. Peripheral name: {}",
+            state_guard.peripheral_name
+        );
+        (
+            state_guard.peripheral_name.clone(),
+            state_guard.peripheral.clone(),
+        )
     };
 
     RUNTIME.spawn(async move {
-        println!("[Rust] Spawning async task for service setup and advertising...");
-        if let Err(e) = setup_service_and_start_advertising(peripheral, service_uuid, characteristics, peripheral_name).await {
-            println!("[Rust] Failed to setup service and start advertising: {:?}", e);
+        info!("[Rust] Spawning async task for service setup and advertising...");
+        if let Err(e) = setup_service_and_start_advertising(
+            peripheral,
+            service_uuid,
+            characteristics,
+            peripheral_name,
+        )
+        .await
+        {
+            info!(
+                "[Rust] Failed to setup service and start advertising: {:?}",
+                e
+            );
             return;
         }
 
-        println!("[Rust] Services setup completed. Advertising started...");
+        info!("[Rust] Services setup completed. Advertising started...");
 
         futures::join!(
             handle_characteristics(receiver_characteristic),
@@ -101,54 +128,59 @@ pub fn create_gatt_peripheral(
             tokio::time::sleep(Duration::from_millis(advertising_duration_ms))
         );
 
-        println!("[Rust] GATT peripheral advertising timeout reached");
+        info!("[Rust] GATT peripheral advertising timeout reached");
 
         if let Err(e) = stop_advertising(state_ref.clone()).await {
-            println!("[Rust] Failed to stop advertising: {:?}", e);
+            info!("[Rust] Failed to stop advertising: {:?}", e);
         }
     });
 
-    println!("[Rust] GATT peripheral created successfully");
+    info!("[Rust] GATT peripheral created successfully");
     Ok(resource)
 }
 
 async fn setup_service_and_start_advertising(
-    peripheral: Arc<RwLock<Peripheral>>,  
+    peripheral: Arc<RwLock<Peripheral>>,
     service_uuid: Uuid,
     characteristics: HashSet<Characteristic>,
     peripheral_name: String,
 ) -> Result<(), RustlerError> {
-    println!("[Rust] Adding service to peripheral...");
+    info!("[Rust] Adding service to peripheral...");
 
     {
         let peripheral_guard = peripheral.write().await;
-        if let Err(e) = peripheral_guard.add_service(&Service::new(service_uuid, true, characteristics)) {
-            println!("[Rust] ❌ Failed to add service: {:?}", e);
+        if let Err(e) =
+            peripheral_guard.add_service(&Service::new(service_uuid, true, characteristics))
+        {
+            info!("[Rust] ❌ Failed to add service: {:?}", e);
             return Err(RustlerError::Atom("failed_to_add_service"));
         }
     }
 
-    println!("[Rust] Service added successfully. Starting advertising...");
+    info!("[Rust] Service added successfully. Starting advertising...");
 
     {
-    let peripheral_guard = peripheral.write().await;
-    println!("[Rust] Attempting to start advertising in discoverable mode...");
-    
-    match peripheral_guard.start_advertising(&peripheral_name, &[service_uuid]).await {
-        Ok(_) => println!("[Rust] ✅ Advertising started successfully in discoverable mode!"),
-        Err(e) => {
-            println!("[Rust] ❌ Failed to start advertising: {:?}", e);
-            return Err(RustlerError::Atom("failed_to_start_advertising"));
+        let peripheral_guard = peripheral.write().await;
+        info!("[Rust] Attempting to start advertising in discoverable mode...");
+
+        match peripheral_guard
+            .start_advertising(&peripheral_name, &[service_uuid])
+            .await
+        {
+            Ok(_) => info!("[Rust] ✅ Advertising started successfully in discoverable mode!"),
+            Err(e) => {
+                info!("[Rust] ❌ Failed to start advertising: {:?}", e);
+                return Err(RustlerError::Atom("failed_to_start_advertising"));
+            }
         }
     }
-}
 
-    println!("[Rust] Peripheral started advertising");
+    info!("[Rust] Peripheral started advertising");
     Ok(())
 }
 
 async fn stop_advertising(state: Arc<Mutex<GattPeripheralState>>) -> Result<(), RustlerError> {
-    println!("[Rust] Stopping advertising...");
+    info!("[Rust] Stopping advertising...");
 
     let peripheral = {
         let state_guard = state.lock().unwrap();
@@ -158,12 +190,12 @@ async fn stop_advertising(state: Arc<Mutex<GattPeripheralState>>) -> Result<(), 
     {
         let peripheral_guard = peripheral.write().await;
         if let Err(e) = peripheral_guard.stop_advertising().await {
-            println!("[Rust] Failed to stop advertising: {:?}", e);
+            info!("[Rust] Failed to stop advertising: {:?}", e);
             return Err(RustlerError::Atom("failed_to_stop_advertising"));
         }
     }
 
-    println!("[Rust] Peripheral stopped advertising");
+    info!("[Rust] Peripheral stopped advertising");
     Ok(())
 }
 
@@ -175,8 +207,12 @@ fn create_characteristics(
     let char_uuid = short_uuid_to_uuid(0x2A3D);
 
     let properties = characteristic::Properties::new(
-        Some(characteristic::Read(characteristic::Secure::Insecure(sender_characteristic.clone()))),
-        Some(characteristic::Write::WithResponse(characteristic::Secure::Insecure(sender_characteristic.clone()))),
+        Some(characteristic::Read(characteristic::Secure::Insecure(
+            sender_characteristic.clone(),
+        ))),
+        Some(characteristic::Write::WithResponse(
+            characteristic::Secure::Insecure(sender_characteristic.clone()),
+        )),
         Some(sender_characteristic),
         None,
     );
@@ -186,8 +222,12 @@ fn create_characteristics(
     descriptors.insert(Descriptor::new(
         desc_uuid,
         descriptor::Properties::new(
-            Some(descriptor::Read(descriptor::Secure::Insecure(sender_descriptor.clone()))),
-            Some(descriptor::Write(descriptor::Secure::Insecure(sender_descriptor))),
+            Some(descriptor::Read(descriptor::Secure::Insecure(
+                sender_descriptor.clone(),
+            ))),
+            Some(descriptor::Write(descriptor::Secure::Insecure(
+                sender_descriptor,
+            ))),
         ),
         None,
     ));
@@ -202,7 +242,6 @@ fn create_characteristics(
     characteristics
 }
 
-
 async fn handle_characteristics(mut receiver: futures::channel::mpsc::Receiver<Event>) {
     let characteristic_value = Arc::new(RwLock::new(String::from("Initial Value")));
     let notifying = Arc::new(atomic::AtomicBool::new(false));
@@ -211,7 +250,10 @@ async fn handle_characteristics(mut receiver: futures::channel::mpsc::Receiver<E
         match event {
             Event::ReadRequest(request) => {
                 let value = characteristic_value.read().await.clone();
-                request.response.send(Response::Success(value.into_bytes())).unwrap();
+                request
+                    .response
+                    .send(Response::Success(value.into_bytes()))
+                    .unwrap();
             }
             Event::WriteRequest(request) => {
                 if let Ok(value) = String::from_utf8(request.data) {
@@ -230,7 +272,10 @@ async fn handle_characteristics(mut receiver: futures::channel::mpsc::Receiver<E
                     while notify_flag.load(atomic::Ordering::SeqCst) {
                         counter += 1;
                         let value = format!("Notification {}", counter);
-                        subscribe.notification.try_send(value.into_bytes()).unwrap_or_default();
+                        subscribe
+                            .notification
+                            .try_send(value.into_bytes())
+                            .unwrap_or_default();
                         tokio::time::sleep(Duration::from_secs(1)).await;
                     }
                 });
@@ -260,7 +305,6 @@ async fn handle_descriptors(mut receiver: futures::channel::mpsc::Receiver<Event
         }
     }
 }
-
 
 fn short_uuid_to_uuid(short_uuid: u16) -> Uuid {
     let mut bytes = [0x00; 16];

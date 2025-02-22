@@ -21,6 +21,9 @@ rustc_version = "0.4"
 
 [dependencies]
 uuid = "1.14.0" 
+log = "0.4.22"
+# env_logger = "0.11"
+pretty_env_logger = "0.5.0"
 # { git = "https://github.com/uuid-rs/uuid.git", branch = "main" } # "1.4" #{ version = "1.4", features = ["serde"] }
 
 btleplug = { version = "0.11.7", features = ["serde"] }
@@ -35,8 +38,6 @@ sysinfo = "0.33.1"
 rustler = { version = "0.36.1", default-features = false, features = ["derive", "nif_version_2_15"] }
 rustler_codegen = "*"
 bufstream = "0.1.4"
-log = "0.4.22"
-env_logger = "0.11"
 futures-util = "0.3"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = "0.1"
@@ -54,7 +55,6 @@ mimalloc = { version = "*", default-features = false , optional = true }
 
 [dev-dependencies]
 rand = "0.9.0"
-pretty_env_logger = "0.5.0"
 clippy = { version = "0.0.302" }
 
 #[target.aarch64-unknown-linux-gnu.dependencies]

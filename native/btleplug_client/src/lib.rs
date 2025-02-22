@@ -35,6 +35,9 @@ extern crate rustler;
 #[macro_use]
 extern crate rustler_codegen;
 
+use log::{debug, error, info, warn};
+use pretty_env_logger;
+
 use central_manager::*;
 use gatt_peripheral::*;
 use once_cell::sync::Lazy;
@@ -47,6 +50,8 @@ pub static RUNTIME: Lazy<Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime"));
 
 fn on_load(env: Env, _info: Term) -> bool {
+    pretty_env_logger::init();
+
     println!("[Rust] Initializing Rust NIF module...");
     rustler::resource!(CentralRef, env);
     rustler::resource!(PeripheralRef, env);

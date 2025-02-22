@@ -19,12 +19,17 @@ rustler::atoms! {
     btleplug_device_discovered,
     btleplug_device_discovery_error,
     btleplug_device_connected,
+    btleplug_device_updated,
     btleplug_device_disconnected,
     btleplug_device_not_found,
+
+    btleplug_device_service_discovery_error,
 
     btleplug_manufacturer_data_advertisement,
     btleplug_service_data_advertisement,
     btleplug_services_advertisement,
+
+    btleplug_characteristic_value_changed,
 }
 
 //pub(crate)

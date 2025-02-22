@@ -1,11 +1,19 @@
 use crate::atoms;
+
+use log::{debug, error, info, warn};
+use pretty_env_logger;
+
 use crate::RUNTIME;
 use futures::StreamExt;
-use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, ResourceArc, Term};
+use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
 use std::sync::{Arc, Mutex};
 
-use btleplug::api::Peripheral as _;
+// use btleplug::api::Peripheral;
+use btleplug::api::Peripheral as ApiPeripheral;
 use btleplug::platform::Peripheral;
+
+//use bluster::gatt::characteristic::Characteristic;
+use btleplug::api::Characteristic;
 
 pub struct PeripheralRef(pub(crate) Arc<Mutex<PeripheralState>>);
 
@@ -22,7 +30,7 @@ impl PeripheralState {
 
 impl Drop for PeripheralState {
     fn drop(&mut self) {
-        println!("[Rust] PeripheralResource destructor called.");
+        debug!("PeripheralResource destructor called.");
     }
 }
 
@@ -33,30 +41,83 @@ pub fn connect(
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     let resource_arc = resource.0.clone();
 
+    let pid = env.pid();
+
     RUNTIME.spawn(async move {
+        let mut msg_env = OwnedEnv::new();
+
         let peripheral = {
             let peripheral_state = resource_arc.lock().unwrap();
             peripheral_state.peripheral.clone()
         };
 
-        println!("[Rust] Connecting to Peripheral: {:?}", peripheral.id());
+        debug!("Connecting to Peripheral: {:?}", peripheral.id());
 
         if let Err(e) = peripheral.connect().await {
-            println!("[Rust] Failed to connect: {:?}", e);
+            warn!("Failed to connect: {:?}", e);
         } else {
-            println!("[Rust] Successfully connected to peripheral.");
+            info!("Successfully connected to peripheral.");
+
+            match msg_env.send_and_clear(&pid, |env| {
+                (
+                    atoms::btleplug_device_connected(),
+                    peripheral.id().to_string(),
+                )
+                    .encode(env)
+            }) {
+                Ok(_) => {
+                    debug!("Successfully sent characteristic value changed message")
+                }
+                Err(e) => debug!(
+                    "Failed to send sent characteristic value changed message (Error: {:?}). \
+                    This might happen if the Elixir process has terminated.",
+                    e
+                ),
+            }
 
             // Discover services after successful connection
             if let Err(e) = peripheral.discover_services().await {
-                println!("[Rust] Failed to discover services: {:?}", e);
+                warn!("Failed to discover services: {:?}", e);
+
+                match msg_env.send_and_clear(&pid, |env| {
+                    (
+                        atoms::btleplug_device_service_discovery_error(),
+                        peripheral.id().to_string(),
+                    )
+                        .encode(env)
+                }) {
+                    Ok(_) => {
+                        debug!("Successfully sent characteristic value changed message")
+                    }
+                    Err(e) => debug!(
+                        "Failed to send sent characteristic value changed message (Error: {:?}). \
+                    This might happen if the Elixir process has terminated.",
+                        e
+                    ),
+                }
             } else {
-                println!("[Rust] Services discovered successfully.");
+                debug!("Services discovered successfully.");
             }
         }
     });
 
     Ok(resource)
 }
+
+// async fn get_characteristics(peripheral: &Peripheral) -> Result<Vec<Characteristic>, String> {
+//     // ✅ Cast `peripheral` into a reference of `ApiPeripheral` to call the method
+//     let characteristics = ApiPeripheral::discover_characteristics(peripheral.as_ref())
+//         .await
+//         .map_err(|e| format!("Discover characteristics error: {:?}", e))?;
+
+//     info!("Characteristics length: {}", characteristics.len());
+
+//     for characteristic in &characteristics {
+//         println!("Characteristic: {:?}", characteristic);
+//     }
+
+//     Ok(characteristics)
+// }
 
 #[rustler::nif]
 pub fn subscribe(
@@ -65,17 +126,39 @@ pub fn subscribe(
     characteristic_uuid: String,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     let resource_arc = resource.0.clone();
+    let pid = env.pid();
 
     RUNTIME.spawn(async move {
+        let mut msg_env = OwnedEnv::new();
+
         let peripheral = {
             let peripheral_state = resource_arc.lock().unwrap();
             peripheral_state.peripheral.clone()
         };
 
+        // ✅ Call `discover_characteristics()` correctly
+        // let characteristics = ApiPeripheral::discover_characteristics(&peripheral)
+        //     .await
+        //     .map_err(|e| format!("Discover characteristics error: {:?}", e))?;
+
+        // ✅ Use the instance method instead of calling it on the trait
+
+        match peripheral.discover_services().await {
+            Ok(services) => {
+                info!("Services length: {:?}", services);
+            }
+            Err(e) => {
+                 warn!("Error discovering services {:?}", e);
+            }
+        };
         let characteristics = peripheral.characteristics();
+            
+    // .map_err(|e| format!("Discover characteristics error: {:?}", e))?;
+
+        info!("Characteristics length: {:?}", characteristics.len());
 
         for characteristic in &characteristics {
-            println!("[Rust] Characteristic: {:?}", characteristic);
+            info!("Characteristic: {:?}", characteristic);
         }
 
         let characteristic = characteristics
@@ -85,27 +168,36 @@ pub fn subscribe(
 
         match characteristic {
             Some(char) => {
-                println!("[Rust] Subscribing to characteristic: {:?}", char.uuid);
+                info!("Subscribing to characteristic: {:?}", char.uuid);
 
                 match peripheral.subscribe(&char).await {
                     Ok(_) => {
                         match peripheral.notifications().await {
                             Ok(mut notifications) => {
                                 while let Some(notification) = notifications.next().await {
-                                    println!(
-                                        "[Rust] Received Notification: {:?}",
-                                        notification.value
-                                    );
-                                    // Here you could send notifications back to Elixir using the pid
+                                    debug!("Received Notification: {:?}", notification.value);
+
+                                    match msg_env.send_and_clear(&pid, |env| {
+                                        (atoms::btleplug_characteristic_value_changed(), char.uuid.to_string()).encode(env)
+                                    }) {
+                                        Ok(_) => {
+                                            debug!("Successfully sent characteristic value changed message")
+                                        }
+                                        Err(e) => debug!(
+                                            "Failed to send characteristic value changed message (Error: {:?}). \
+                                This might happen if the Elixir process has terminated.",
+                                            e
+                                        ),
+                                    }
                                 }
                             }
-                            Err(e) => println!("[Rust] Failed to get notifications: {:?}", e),
+                            Err(e) => warn!("Failed to get notifications: {:?}", e),
                         }
                     }
-                    Err(e) => println!("[Rust] Failed to subscribe: {:?}", e),
+                    Err(e) => warn!("Failed to subscribe: {:?}", e),
                 }
             }
-            None => println!("[Rust] Characteristic not found: {}", characteristic_uuid),
+            None => info!("Characteristic not found: {}", characteristic_uuid),
         }
     });
 

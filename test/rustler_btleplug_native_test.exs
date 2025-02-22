@@ -143,9 +143,23 @@ defmodule RustlerBtleplug.NativeTest do
           |> Native.stop_scan()
           |> Native.find_peripheral(peripheral_id)
           |> Native.connect()
-          |> Native.subscribe("test")
 
-        # Process.sleep(1000)
+        Process.sleep(1000)
+
+        messages = :erlang.process_info(self(), :messages)
+        IO.inspect(messages, label: "messages")
+
+
+        # assert_receive {:btleplug_device_updated, _msg}
+        # assert_receive {:btleplug_services_advertisement, _msg}
+        # assert_receive {:btleplug_service_data_advertisement, _msg}
+        # assert_receive {:btleplug_btleplug_device_connected, _msg}
+
+        peripheral_subscribed =
+          peripheral_resource
+          |> Native.subscribe("all")
+
+        Process.sleep(5000)
 
         # assert status == :ok
         assert is_reference(peripheral_resource)
@@ -156,13 +170,13 @@ defmodule RustlerBtleplug.NativeTest do
     # assert_receive {:btleplug_device_discovered, peripheral_id}
   end
 
-  @tag timeout: :infinity
+  # @tag timeout: :infinity
   test "Create GATT peripheral" do
     gatt_peripheral_resource =
       Native.create_gatt_peripheral("Movesense Rustler")
 
     assert is_reference(gatt_peripheral_resource)
 
-    Process.sleep(100000)
+    Process.sleep(1000)
   end
 end

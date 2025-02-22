@@ -1,6 +1,8 @@
 use crate::atoms;
 use crate::peripheral::PeripheralRef;
 use crate::peripheral::PeripheralState;
+use log::{debug, error, info, warn};
+use pretty_env_logger;
 use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
 
 use btleplug::api::{
@@ -11,6 +13,8 @@ use btleplug::platform::{Adapter, Manager};
 use futures::StreamExt;
 use tokio::spawn;
 use uuid::Uuid;
+
+use std::collections::HashMap;
 
 use crate::RUNTIME;
 use std::sync::{Arc, Mutex};
@@ -48,7 +52,7 @@ impl CentralManagerState {
 
 #[rustler::nif]
 pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError> {
-    println!("[Rust] Creating CentralManager...");
+    info!("Creating CentralManager...");
 
     let manager = RUNTIME
         .block_on(Manager::new())
@@ -64,7 +68,7 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
 
     let adapter = adapters.into_iter().next().unwrap();
     let adapter_info = RUNTIME.block_on(adapter.adapter_info());
-    println!("[Rust] Adapter initialized: {:?}", adapter_info);
+    info!("Adapter initialized: {:?}", adapter_info);
 
     let (event_sender, event_receiver) = mpsc::channel::<CentralEvent>(100);
     let event_receiver = Arc::new(RwLock::new(event_receiver));
@@ -83,27 +87,27 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
 
     // Spawn a task to handle adapter events
     RUNTIME.spawn(async move {
-        println!("[Rust] Starting adapter event handler...");
+        debug!("Starting adapter event handler...");
         let mut events = match adapter.events().await {
             Ok(events) => events,
             Err(e) => {
-                println!("[Rust] Failed to get adapter events: {:?}", e);
+                debug!("Failed to get adapter events: {:?}", e);
                 return;
             }
         };
 
         while let Some(event) = events.next().await {
-            println!("[Rust] Received adapter event: {:?}", event);
+            debug!("Received adapter event: {:?}", event);
             if let Err(e) = event_sender_clone.send(event).await {
-                println!("[Rust] Failed to forward event: {:?}", e);
+                debug!("Failed to forward event: {:?}", e);
                 break;
             }
         }
-        println!("[Rust] Adapter event handler closed");
+        debug!("Adapter event handler closed");
     });
 
     RUNTIME.spawn(async move {
-        println!("[Rust] Starting event receiver handler...");
+        debug!("Starting event receiver handler...");
         let mut receiver = event_receiver_clone.write().await;
 
         while let Some(event) = receiver.recv().await {
@@ -111,14 +115,42 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
             match event {
                 CentralEvent::DeviceDiscovered(id) => {
                     let uuid = id.to_string();
-                    println!("[Rust] Device discovered - UUID: {}", uuid);
+                    info!("Device discovered - UUID: {}", uuid);
                     match msg_env.send_and_clear(&pid, |env| {
                         (atoms::btleplug_device_discovered(), uuid).encode(env)
                     }) {
-                        Ok(_) => println!("[Rust] Successfully sent device discovery message to Elixir process"),
-                        Err(e) => println!(
-                            "[Rust] Failed to send device discovery message to Elixir process (Error: {:?}. \
-                            This might happen if the Elixir process has terminated.",
+                        Ok(_) => debug!("Successfully sent device discovery message"),
+                        Err(e) => debug!(
+                            "Failed to send device discovery message (Error: {:?}). \
+                    This might happen if the Elixir process has terminated.",
+                            e
+                        ),
+                    }
+                }
+                CentralEvent::DeviceConnected(id) => {
+                    let uuid = id.to_string();
+                    info!("Device connected - UUID: {}", uuid);
+                    match msg_env.send_and_clear(&pid, |env| {
+                        (atoms::btleplug_device_connected(), uuid).encode(env)
+                    }) {
+                        Ok(_) => debug!("Successfully sent device connected message"),
+                        Err(e) => debug!(
+                            "Failed to send device connected message (Error: {:?}). \
+                    This might happen if the Elixir process has terminated.",
+                            e
+                        ),
+                    }
+                }
+                CentralEvent::DeviceDisconnected(id) => {
+                    let uuid = id.to_string();
+                    info!("Device disconnected - UUID: {}", uuid);
+                    match msg_env.send_and_clear(&pid, |env| {
+                        (atoms::btleplug_device_disconnected(), uuid).encode(env)
+                    }) {
+                        Ok(_) => debug!("Successfully sent device disconnected message"),
+                        Err(e) => debug!(
+                            "Failed to send device disconnected message (Error: {:?}). \
+                    This might happen if the Elixir process has terminated.",
                             e
                         ),
                     }
@@ -127,24 +159,106 @@ pub fn create_central(env: Env) -> Result<ResourceArc<CentralRef>, RustlerError>
                     id,
                     manufacturer_data,
                 } => {
-                    println!("DEBUG: Manufacturer data from device ID: {:?}", id);
-                    if let Err(e) = msg_env.send_and_clear(&pid, |env| {
+                    let uuid = id.to_string();
+                    debug!(
+                        "Manufacturer data from UUID: {} - Data: {:?}",
+                        uuid, manufacturer_data
+                    );
+                    match msg_env.send_and_clear(&pid, |env| {
                         (
                             atoms::btleplug_manufacturer_data_advertisement(),
-                            format!("Manufacturer data from: {:?}", id),
-                            manufacturer_data,
+                            (uuid, manufacturer_data),
                         )
                             .encode(env)
                     }) {
-                        println!("[Rust] Failed to send manufacturer data message: {:?}", e);
+                        Ok(_) => debug!("Successfully sent manufacturer data message"),
+                        Err(e) => debug!(
+                            "Failed to send manufacturer data message (Error: {:?}). \
+                    This might happen if the Elixir process has terminated.",
+                            e
+                        ),
                     }
                 }
-                _ => {
-                    println!("[Rust] Other event: {:?}", event);
+                CentralEvent::ServiceDataAdvertisement { id, service_data } => {
+                    let uuid = id.to_string();
+                    debug!(
+                        "Service data from UUID: {} - Data: {:?}",
+                        uuid, service_data
+                    );
+
+                    // Convert the HashMap with Uuid keys to String keys
+                    let converted_data: HashMap<String, Vec<u8>> = service_data
+                        .into_iter()
+                        .map(|(k, v)| (k.to_string(), v))
+                        .collect();
+
+                    match msg_env.send_and_clear(&pid, |env| {
+                        (
+                            atoms::btleplug_service_data_advertisement(),
+                            (uuid, converted_data),
+                        )
+                            .encode(env)
+                    }) {
+                        Ok(_) => debug!("Successfully sent service data message"),
+                        Err(e) => debug!(
+                            "Failed to send service data message (Error: {:?}). \
+            This might happen if the Elixir process has terminated.",
+                            e
+                        ),
+                    }
                 }
+                CentralEvent::ServicesAdvertisement { id, services } => {
+                    let uuid = id.to_string();
+                    let services: Vec<String> =
+                        services.into_iter().map(|s| s.to_string()).collect();
+                    debug!("Services from UUID: {} - Services: {:?}", uuid, services);
+                    match msg_env.send_and_clear(&pid, |env| {
+                        (atoms::btleplug_services_advertisement(), (uuid, services)).encode(env)
+                    }) {
+                        Ok(_) => debug!("Successfully sent services message"),
+                        Err(e) => debug!(
+                            "Failed to send services message (Error: {:?}). \
+                    This might happen if the Elixir process has terminated.",
+                            e
+                        ),
+                    }
+                }
+                CentralEvent::StateUpdate(state) => {
+                    debug!("Adapter state changed: {:?}", state);
+                    match msg_env.send_and_clear(&pid, |env| {
+                        (
+                            atoms::btleplug_adapter_status_update(),
+                            format!("{:?}", state),
+                        )
+                            .encode(env)
+                    }) {
+                        Ok(_) => debug!("Successfully sent state update message"),
+                        Err(e) => debug!(
+                            "Failed to send state update message (Error: {:?}). \
+                    This might happen if the Elixir process has terminated.",
+                            e
+                        ),
+                    }
+                }
+                CentralEvent::DeviceUpdated(id) => {
+                    let uuid = id.to_string();
+                    debug!("Device updated - UUID: {}", uuid);
+                    match msg_env.send_and_clear(&pid, |env| {
+                        (atoms::btleplug_device_updated(), uuid).encode(env)
+                    }) {
+                        Ok(_) => debug!("Successfully sent device updated message"),
+                        Err(e) => debug!(
+                            "Failed to send device updated message (Error: {:?}). \
+                    This might happen if the Elixir process has terminated.",
+                            e
+                        ),
+                    }
+                } // _ => {
+                  //     debug!("Other event: {:?}", event);
+                  // }
             }
         }
-        println!("[Rust] Event receiver closed.");
+        debug!("Event receiver closed.");
     });
 
     Ok(resource)
@@ -156,7 +270,7 @@ pub fn start_scan(
     resource: ResourceArc<CentralRef>,
     duration_ms: u64,
 ) -> Result<ResourceArc<CentralRef>, RustlerError> {
-    println!("[Rust] Starting BLE scan for {} ms...", duration_ms);
+    info!("Starting BLE scan for {} ms...", duration_ms);
 
     let resource_arc = resource.0.clone();
     let resource_arc_stop = resource_arc.clone();
@@ -175,7 +289,7 @@ pub fn start_scan(
         };
 
         if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
-            println!("[Rust] Failed to start scan: {:?}", e);
+            warn!("Failed to start scan: {:?}", e);
             return;
         }
         msg_env.send_and_clear(&pid, |env| {
@@ -186,7 +300,7 @@ pub fn start_scan(
                 .encode(env)
         });
 
-        println!("[Rust] Scan started successfully");
+        debug!("Scan started successfully");
 
         // Wait for the specified duration
         sleep(Duration::from_millis(duration_ms)).await;
@@ -198,7 +312,7 @@ pub fn start_scan(
         };
 
         if let Err(e) = adapter.stop_scan().await {
-            println!("[Rust] Failed to stop scan after timeout: {:?}", e);
+            warn!("Failed to stop scan after timeout: {:?}", e);
             return;
         }
 
@@ -210,7 +324,7 @@ pub fn start_scan(
                 .encode(env)
         });
 
-        println!("[Rust] Scan stopped automatically after {} ms", duration_ms);
+        debug!("Scan stopped automatically after {} ms", duration_ms);
     });
 
     Ok(resource)
@@ -220,7 +334,7 @@ pub fn start_scan(
 pub fn stop_scan(
     resource: ResourceArc<CentralRef>,
 ) -> Result<ResourceArc<CentralRef>, RustlerError> {
-    println!("[Rust] Stopping BLE scan...");
+    debug!("Stopping BLE scan...");
 
     let resource_arc = resource.0.clone();
 
@@ -231,10 +345,10 @@ pub fn stop_scan(
         };
 
         if let Err(e) = adapter.stop_scan().await {
-            println!("[Rust] Failed to stop scan: {:?}", e);
+            warn!("Failed to stop scan: {:?}", e);
             return;
         }
-        println!("[Rust] Scan stopped successfully");
+        debug!("Scan stopped successfully");
     });
     Ok(resource)
 }
@@ -245,7 +359,7 @@ pub fn find_peripheral(
     resource: ResourceArc<CentralRef>,
     uuid: String,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
-    println!("[Rust] Finding peripheral with UUID: {}", uuid);
+    info!("Looking for peripheral with UUID: {}", uuid);
 
     let resource_arc = resource.0.clone();
 
@@ -263,13 +377,13 @@ pub fn find_peripheral(
 
     // Find the peripheral with matching UUID
     for peripheral in peripherals {
-        println!(
-            "[Rust] Iterating peripheral peripheral.id(): {:?}, uuid: {:?}",
+        info!(
+            "Iterating peripheral peripheral.id(): {:?}, uuid: {:?}",
             peripheral.id(),
             uuid
         );
         if peripheral.id().to_string() == uuid {
-            println!("[Rust] Found peripheral: {:?}", peripheral.id());
+            info!("Found peripheral: {:?}", peripheral.id());
             let peripheral_state = PeripheralState::new(env.pid(), peripheral);
             return Ok(ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(
                 peripheral_state,

@@ -1,12 +1,12 @@
-use std::env;
-use rustc_version::{version_meta, Channel};
+// use std::env;
+// use rustc_version::{version_meta, Channel};
 
-fn main() {
-    println!("cargo:rerun-if-changed=build.rs");
+// fn main() {
+//     println!("cargo:rerun-if-changed=build.rs");
 
-    let target = env::var("TARGET").unwrap();
+//     let target = env::var("TARGET").unwrap();
     
-    if target.contains("musl") {
-        println!("cargo:rustc-cfg=target_env=\"musl\"");
-    }
-}
+//     if target.contains("musl") {
+//         println!("cargo:rustc-cfg=target_env=\"musl\"");
+//     }
+// }

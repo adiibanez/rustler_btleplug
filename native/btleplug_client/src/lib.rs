@@ -4,6 +4,7 @@
 #![allow(deprecated)]
 #![allow(unused_must_use)]
 #![allow(non_local_definitions)]
+#![allow(unexpected_cfgs)]
 // #[rustler::nif(schedule = "DirtyCpu")]
 
 // MiMalloc won´t compile on Windows with the GCC compiler.

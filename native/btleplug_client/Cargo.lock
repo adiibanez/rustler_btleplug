@@ -149,6 +149,7 @@ dependencies = [
 [[package]]
 name = "bluster"
 version = "0.2.0"
+source = "git+https://github.com/adiibanez/bluster?branch=bump_uuid#f89fc5d3c1b5bf1deb15dab51abff707f4974fd9"
 dependencies = [
  "dbus",
  "dbus-crossroads",

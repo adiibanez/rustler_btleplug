@@ -2,8 +2,6 @@ defmodule RustlerBtleplug.NativeTest do
   use ExUnit.Case, async: false
   alias RustlerBtleplug.Native
 
-  @capture_logs true
-
   test "Test string" do
     # assert {:ok, resource} = Native.create_central()
     assert resource = Native.test_string("whatever")
@@ -176,12 +174,12 @@ defmodule RustlerBtleplug.NativeTest do
   end
 
   # @tag timeout: :infinity
-  test "Create GATT peripheral" do
-    gatt_peripheral_resource =
-      Native.create_gatt_peripheral("Movesense Rustler")
+  # test "Create GATT peripheral" do
+  #   gatt_peripheral_resource =
+  #     Native.create_gatt_peripheral("Movesense Rustler")
 
-    assert is_reference(gatt_peripheral_resource)
+  #   assert is_reference(gatt_peripheral_resource)
 
-    Process.sleep(1000)
-  end
+  #   Process.sleep(1000)
+  # end
 end

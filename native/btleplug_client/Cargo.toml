@@ -28,12 +28,10 @@ chrono = "0.4.3"
 # { git = "https://github.com/uuid-rs/uuid.git", branch = "main" } # "1.4" #{ version = "1.4", features = ["serde"] }
 
 btleplug = { version = "0.11.7", features = ["serde"] }
-#bluster = { version = "0.2.0"}
 bluster = {git = "https://github.com/adiibanez/bluster", branch = "bump_uuid"}
 #bluster = {path = "../../../bluster"}
 
-# bluster = "0.2.0" # { version = "0.2.0", default-features = false, features = ["uuid1"] }
-# some potential gatt characteristics
+# some potential gatt characteristics data sources
 battery = "0.7.8"
 sysinfo = "0.33.1"
 rustler = { version = "0.36.1", default-features = false, features = ["derive", "nif_version_2_15"] }

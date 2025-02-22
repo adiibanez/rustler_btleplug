@@ -122,7 +122,7 @@ pub fn subscribe(
     let peripheral_arc = resource.0.clone();
 
     RUNTIME.spawn(async move {
-        let mut msg_env = OwnedEnv::new();
+        let msg_env = OwnedEnv::new();
 
         let (peripheral, services_discovered) = {
             let state_guard = peripheral_arc.lock().unwrap();

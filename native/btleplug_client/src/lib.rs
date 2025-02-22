@@ -77,7 +77,7 @@ fn on_load(env: Env, _info: Term) -> bool {
     println!("[Rust] Initializing Rust NIF module...");
     rustler::resource!(CentralRef, env);
     rustler::resource!(PeripheralRef, env);
-    rustler::resource!(GattPeripheralRef, env);
+    // rustler::resource!(GattPeripheralRef, env);
     println!("[Rust] Rust NIF module loaded successfully.");
     true
 }

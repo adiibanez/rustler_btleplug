@@ -71,6 +71,12 @@ jobs:
       run: |
         rustup target add ${{ matrix.job.target }}
 
+    - name: Install cross
+      shell: bash
+      run: |
+        echo "Installing cross"
+        cargo install cross --git https://github.com/cross-rs/cross
+
     - name: Set RUSTFLAGS for musl
       if: ${{ matrix.job.target == 'aarch64-unknown-linux-musl' || matrix.job.target == 'x86_64-unknown-linux-musl' }}
       shell: bash

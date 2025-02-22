@@ -38,6 +38,11 @@ once_cell = "1.19"
 rand = "0.9.0"
 pretty_env_logger = "0.5.0"
 
+# MiMalloc won´t compile on Windows with the GCC compiler.
+# On Linux with Musl it won´t load correctly.
+[target.'cfg(not(any(all(windows, target_env = "gnu"), all(target_os = "linux", target_env = "musl"))))'.dependencies]
+mimalloc = { version = "*", default-features = false }
+
 #[target.aarch64-unknown-linux-gnu.dependencies]
 #dbus = {version = "0.9.7", features = ["vendored"]}
 

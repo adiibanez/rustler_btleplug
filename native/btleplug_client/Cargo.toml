@@ -49,8 +49,19 @@ mimalloc = { version = "*", default-features = false }
 [target.'cfg(target_os = "linux")'.dependencies]
 dbus = { version = "0.9.7", features = ["vendored"] }
 
-# [target.aarch64-unknown-linux-musl]
-# rustflags = ["-C", "link-arg=-static"]
+[target.aarch64-unknown-linux-musl.dependencies]
+serde = { version = "1.0.218", features = ["alloc"], optional = true }
+serde_json = { version = "1.0.134", features = ["alloc"], optional = true }
 
-# [target.x86_64-unknown-linux-musl]
-# rustflags = ["-C", "link-arg=-static"]
+[target.x86_64-unknown-linux-musl.dependencies]
+serde = { version = "1.0.218", features = ["alloc"], optional = true }
+serde_json = { version = "1.0.134", features = ["alloc"], optional = true }
+
+[features]
+default = ["log", "enable-serde"]
+log = ["dep:log"]
+enable-serde = ["serde", "serde_json"]
+
+[dependencies.log]
+optional = true
+version = "0.4"

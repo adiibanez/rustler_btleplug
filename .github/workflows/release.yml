@@ -161,25 +161,40 @@ jobs:
         echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
         echo "$RELEASE_BODY" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
-
-    - name: Publish archives and packages (Default)
-      if: startsWith(github.ref, 'refs/tags/') && runner.os != 'Windows'
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          ${{ steps.build-crate.outputs.file-path }}
-        body: ${{ env.RELEASE_BODY }}
-
-    - name: Publish archives and packages (Windows)
-      if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
-      shell: pwsh
+    - name: Publish archives and packages
+      if: startsWith(github.ref, 'refs/tags/')
+      shell: bash
       run: |
-        # Windows-specific publishing logic here
-        echo "Publishing for Windows..."
+        # Determine the release body based on OS
+        RELEASE_BODY="${{ github.event.release.body }}\n\n"
+        RELEASE_BODY+="- SHA256 Checksum: ${{ env.SHA256SUM }}\n"
+        RELEASE_BODY+="- SHA1 Checksum: ${{ env.SHA1SUM }}\n"
+        RELEASE_BODY+="- MD5 Checksum: ${{ env.MD5SUM }}\n"
 
-        # Example: Set environment variable (as suggested in Stack Overflow link)
-        [Environment]::SetEnvironmentVariable("RELEASE_BODY", "${{ env.RELEASE_BODY }}", "Process")
+        # Create the release using gh release create
+        gh release create "${{ github.ref_name }}" \
+          --repo="${{ github.repository }}" \
+          --title="${{ github.repository }} ${{ github.ref_name }}" \
+          --notes "$RELEASE_BODY" \
+          "${{ steps.build-crate.outputs.file-path }}"
+    # - name: Publish archives and packages (Default)
+    #   if: startsWith(github.ref, 'refs/tags/') && runner.os != 'Windows'
+    #   uses: softprops/action-gh-release@v2
+    #   with:
+    #     files: |
+    #       ${{ steps.build-crate.outputs.file-path }}
+    #     body: ${{ env.RELEASE_BODY }}
 
-        # Example: Use a different release action or command
-        gh release create ${{ github.ref_name }} --title "Release ${{ github.ref_name }}" --body "$Env:RELEASE_BODY" ${{ steps.build-crate.outputs.file-path }}
-        echo "Completed Windows Specific Task"
+    # - name: Publish archives and packages (Windows)
+    #   if: startsWith(github.ref, 'refs/tags/') && runner.os == 'Windows'
+    #   shell: pwsh
+    #   run: |
+    #     # Windows-specific publishing logic here
+    #     echo "Publishing for Windows..."
+
+    #     # Example: Set environment variable (as suggested in Stack Overflow link)
+    #     [Environment]::SetEnvironmentVariable("RELEASE_BODY", "${{ env.RELEASE_BODY }}", "Process")
+
+    #     # Example: Use a different release action or command
+    #     gh release create ${{ github.ref_name }} --title "Release ${{ github.ref_name }}" --body "$Env:RELEASE_BODY" ${{ steps.build-crate.outputs.file-path }}
+    #     echo "Completed Windows Specific Task"

@@ -156,12 +156,13 @@ defmodule RustlerBtleplug.NativeTest do
     # assert_receive {:btleplug_device_discovered, peripheral_id}
   end
 
+  @tag timeout: :infinity
   test "Create GATT peripheral" do
     gatt_peripheral_resource =
-      Native.create_gatt_peripheral("hello_bluster")
+      Native.create_gatt_peripheral("Movesense Rustler")
 
     assert is_reference(gatt_peripheral_resource)
 
-    Process.sleep(10000)
+    Process.sleep(100000)
   end
 end

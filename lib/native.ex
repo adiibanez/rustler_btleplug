@@ -46,8 +46,8 @@ defmodule RustlerBtleplug.Native do
   def connect(_peripheral), do: error()
   def subscribe(_peripheral, _characteristics), do: error()
 
-  @spec create_gatt_peripheral(String.t()) :: {:ok, gatt_peripheral()} | {:error, term()}
-  def create_gatt_peripheral(_peripheral_adverstising_name), do: error()
+  @spec create_gatt_peripheral(String.t(), Number.t()) :: {:ok, gatt_peripheral()} | {:error, term()}
+  def create_gatt_peripheral(_peripheral_adverstising_name, _advertising_duration_ms \\ 60000), do: error()
 
   @spec test_string(String.t()) :: {:ok, String.t()} | {:error, term()}
   def test_string(_string), do: error()

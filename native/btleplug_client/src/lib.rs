@@ -6,6 +6,14 @@
 #![allow(non_local_definitions)]
 // #[rustler::nif(schedule = "DirtyCpu")]
 
+#[cfg(not(musl_target))]
+#[link(name = "btleplug_client")]
+extern {}
+
+#[cfg(musl_target)]
+#[link(name = "btleplug_client", kind = "static")]
+extern {}
+
 mod atoms;
 mod central_manager;
 mod peripheral;

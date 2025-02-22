@@ -79,6 +79,13 @@ jobs:
         workspaces: |
           native/btleplug_client
 
+    - name: Set CROSS_TARGET_FLAGS for musl
+      if: ${{ matrix.job.target == 'aarch64-unknown-linux-musl' || matrix.job.target == 'x86_64-unknown-linux-musl' }}
+      shell: bash
+      run: |
+        echo "Setting CROSS_TARGET_FLAGS for ${{ matrix.job.target }}"
+        echo "CROSS_TARGET_FLAGS='-C link-arg=-static'" >> $GITHUB_ENV
+
     - name: Build the project
       id: build-crate
       uses: philss/rustler-precompiled-action@v1.1.4
@@ -92,6 +99,8 @@ jobs:
         project-dir: "native/btleplug_client"
         cargo-args: ${{ matrix.job.cargo-args }}
         variant: ${{ matrix.job.variant }}
+      env:
+        CROSS_TARGET_FLAGS: ${{ env.CROSS_TARGET_FLAGS }} # Pass the environment variable
 
     - name: Artifact attestation
       uses: actions/attest-build-provenance@v1
@@ -101,7 +110,7 @@ jobs:
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ steps.build-crate.outputs.file-name }}
+        name: ${{ matrix.job.target }}-${{ steps.build-crate.outputs.file-name }}
         path: ${{ steps.build-crate.outputs.file-path }}
         retention-days: 5
 

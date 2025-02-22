@@ -171,7 +171,7 @@ pub fn start_scan(
 
         let pid = {
             let central_state = resource_arc.lock().unwrap();
-            central_state.pid;
+            central_state.pid
         };
 
         if let Err(e) = adapter.start_scan(ScanFilter::default()).await {

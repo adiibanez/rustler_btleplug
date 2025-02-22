@@ -56,7 +56,7 @@ mimalloc = { version = "*", default-features = false , optional = true }
 
 [dev-dependencies]
 rand = "0.9.0"
-clippy = { version = "0.0.302" }
+# clippy = { version = "0.0.302" }
 
 #[target.aarch64-unknown-linux-gnu.dependencies]
 #dbus = {version = "0.9.7", features = ["vendored"]}

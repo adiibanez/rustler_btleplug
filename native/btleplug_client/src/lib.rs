@@ -37,14 +37,9 @@ extern crate rustler_codegen;
 
 use log::{debug, error, info, warn};
 
-// use pretty_env_logger;
-// use pretty_env_logger::env_logger;
-// use pretty_env_logger::formatted_builder;
-// use crate::env_logger::Builder;
-// use log::LevelFilter;
-
-use pretty_env_logger::env_logger;
 use log::LevelFilter;
+use pretty_env_logger::env_logger;
+use pretty_env_logger::env_logger::Builder;
 use std::io::Write;
 
 use central_manager::*;
@@ -59,7 +54,6 @@ pub static RUNTIME: Lazy<Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime"));
 
 fn on_load(env: Env, _info: Term) -> bool {
-
     // pretty_env_logger::init();
 
     init_logger();
@@ -110,14 +104,11 @@ fn get_map() -> HashMap<String, HashMap<String, String>> {
     //atoms::ok().encode(env)
 }
 
-
-
 fn init_logger() {
-    let mut builder = env_logger::Builder::from_default_env();
+    let mut builder = Builder::from_default_env(); // ✅ Reads RUST_LOG
 
     builder
-        .filter_level(LevelFilter::Debug)  // ✅ Set log level
-        .format(|buf, record| {  // ✅ Enable colors manually
+        .format(|buf, record| {
             let level_style = buf.default_level_style(record.level()); // 🔥 Colorize log level
             writeln!(
                 buf,
@@ -125,11 +116,13 @@ fn init_logger() {
                 chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
                 record.file().unwrap_or("unknown"),
                 record.line().unwrap_or(0),
-                level_style.value(record.level()),  // ✅ Apply color
+                level_style.value(record.level()), // ✅ Apply color
                 record.args()
             )
         })
         .target(env_logger::Target::Stdout) // ✅ Ensure logs go to stdout
+        .filter_level(LevelFilter::Info) // 🔹 DEFAULT to Info
+        .parse_default_env() // ✅ Allows RUST_LOG to override!
         .init();
 }
 

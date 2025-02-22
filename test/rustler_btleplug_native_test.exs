@@ -122,14 +122,16 @@ defmodule RustlerBtleplug.NativeTest do
   end
 
   test "BLE connect to peripheral" do
+
+    timeout = 5000
+
     # {:ok, ble_resource} = Native.create_central()
     central_resource =
       Native.create_central()
       |> Native.start_scan()
 
     assert is_reference(central_resource)
-
-    assert_receive {:btleplug_scan_started, _msg}
+    assert_receive {:btleplug_scan_started, _msg}, 1000
 
     Process.sleep(2000)
 
@@ -144,32 +146,30 @@ defmodule RustlerBtleplug.NativeTest do
         # {status, peripheral_resource} = central_resource
         peripheral_resource =
           central_resource
+          |> Native.start_scan()
           |> Native.find_peripheral_by_name("Pressure")
           |> Native.connect()
-          |> Native.subscribe("all")
+          |> Native.subscribe("61d20a90-71a1-11ea-ab12-0800200c9a66")
 
         assert is_reference(peripheral_resource)
 
-        Process.sleep(1000)
-
-        messages = :erlang.process_info(self(), :messages)
-        IO.inspect(messages, label: "messages")
-
-        # assert_receive {:btleplug_device_updated, _msg}
-        # assert_receive {:btleplug_services_advertisement, _msg}
-        # assert_receive {:btleplug_service_data_advertisement, _msg}
-        # assert_receive {:btleplug_btleplug_device_connected, _msg}
+        assert_receive {:btleplug_device_updated, _msg}, timeout, "No :btleplug_device_updated received"
+        assert_receive {:btleplug_device_connected, _msg}, timeout, "No :btleplug_device_connected received"
+        #assert_receive {:btleplug_services_advertisement, _msg}, timeout, "No :btleplug_services_advertisement received"
+        #assert_receive {:btleplug_service_data_advertisement, _msg}, timeout, "No :btleplug_service_data_advertisement received"
+        #assert_receive {:btleplug_device_connected, _msg}, timeout, "No :btleplug_device_connected received"
+        assert_receive {:btleplug_characteristic_value_changed, _uuid, _value}, timeout, "No :btleplug_characteristic_value_changed received"
 
         # peripheral_subscribed =
         #   peripheral_resource
         #   |> Native.subscribe("all")
 
-        Process.sleep(5000)
+        messages = :erlang.process_info(self(), :messages)
+        IO.inspect(messages, label: "messages")
 
         # assert status == :ok
-        assert is_reference(peripheral_resource)
     after
-      500 -> flunk("Did not receive :btleplug_device_discovered message")
+      timeout * 2 -> flunk("Did not receive :btleplug_device_discovered message")
     end
 
     # assert_receive {:btleplug_device_discovered, peripheral_id}

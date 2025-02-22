@@ -161,24 +161,34 @@ jobs:
         echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
         echo "$RELEASE_BODY" >> $GITHUB_ENV
         echo "EOF" >> $GITHUB_ENV
-    - name: Publish archives and packages
-      if: startsWith(github.ref, 'refs/tags/')
-      shell: bash
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      run: |
-        # Determine the release body based on OS
-        RELEASE_BODY="${{ github.event.release.body }}\n\n"
-        RELEASE_BODY+="- SHA256 Checksum: ${{ env.SHA256SUM }}\n"
-        RELEASE_BODY+="- SHA1 Checksum: ${{ env.SHA1SUM }}\n"
-        RELEASE_BODY+="- MD5 Checksum: ${{ env.MD5SUM }}\n"
 
-        # Create the release using gh release create
-        gh release create "${{ github.ref_name }}" \
-          --repo="${{ github.repository }}" \
-          --title="${{ github.repository }} ${{ github.ref_name }}" \
-          --notes "$RELEASE_BODY" \
-          "${{ steps.build-crate.outputs.file-path }}"
+    - name: Publish archives and packages
+      uses: softprops/action-gh-release@v2
+      with:
+        make_latest: true
+        append_body: true
+        generate_release_notes: true
+        files: |
+          ${{ steps.build-crate.outputs.file-path }}
+      if: startsWith(github.ref, 'refs/tags/')
+    # - name: Publish archives and packages
+    #   if: startsWith(github.ref, 'refs/tags/')
+    #   shell: bash
+    #   env:
+    #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    #   run: |
+    #     # Determine the release body based on OS
+    #     RELEASE_BODY="${{ github.event.release.body }}\n\n"
+    #     RELEASE_BODY+="- SHA256 Checksum: ${{ env.SHA256SUM }}\n"
+    #     RELEASE_BODY+="- SHA1 Checksum: ${{ env.SHA1SUM }}\n"
+    #     RELEASE_BODY+="- MD5 Checksum: ${{ env.MD5SUM }}\n"
+
+    #     # Create the release using gh release create
+    #     gh release create "${{ github.ref_name }}" \
+    #       --repo="${{ github.repository }}" \
+    #       --title="${{ github.repository }} ${{ github.ref_name }}" \
+    #       --notes "$RELEASE_BODY" \
+    #       "${{ steps.build-crate.outputs.file-path }}"
     # - name: Publish archives and packages (Default)
     #   if: startsWith(github.ref, 'refs/tags/') && runner.os != 'Windows'
     #   uses: softprops/action-gh-release@v2

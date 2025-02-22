@@ -50,9 +50,11 @@ mimalloc = { version = "*", default-features = false }
 dbus = { version = "0.9.7", features = ["vendored"] }
 
 [target.aarch64-unknown-linux-musl.dependencies]
-serde = { version = "1.0.218", features = ["alloc"], optional = true }
-serde_json = { version = "1.0.134", features = ["alloc"], optional = true }
+serde = { version = "1.0", default-features = false, features = ["alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+btleplug = { version = "0.11.7", default-features = false }
 
 [target.x86_64-unknown-linux-musl.dependencies]
-serde = { version = "1.0.218", features = ["alloc"], optional = true }
-serde_json = { version = "1.0.134", features = ["alloc"], optional = true }
+serde = { version = "1.0", default-features = false, features = ["alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+btleplug = { version = "0.11.7", default-features = false }

@@ -43,7 +43,7 @@ defmodule RustlerBtleplug.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: ["https://github.com/adiibanez/rustler_btleplug"],
+      links: %{GitHub: "https://github.com/adiibanez/rustler_btleplug"},
       files: [
         "lib",
         "native/btleplug_client/.cargo",
@@ -59,7 +59,8 @@ defmodule RustlerBtleplug.MixProject do
   defp deps do
     [
       {:rustler, ">= 0.31.0", optional: true},
-      {:rustler_precompiled, "~> 0.7"}
+      {:rustler_precompiled, "~> 0.7"},
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
       # {:dep_from_hexpm, "~> 0.3.0"},
       # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
     ]

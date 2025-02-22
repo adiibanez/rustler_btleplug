@@ -71,6 +71,17 @@ jobs:
       run: |
         rustup target add ${{ matrix.job.target }}
 
+    - name: Set RUSTFLAGS for musl
+      if: ${{ matrix.job.target == 'aarch64-unknown-linux-musl' || matrix.job.target == 'x86_64-unknown-linux-musl' }}
+      shell: bash
+      run: |
+        echo "Setting RUSTFLAGS for ${{ matrix.job.target }}"
+        if [[ -n "$RUSTFLAGS" ]]; then
+          echo "RUSTFLAGS='$RUSTFLAGS -C link-arg=-static'" >> $GITHUB_ENV
+        else
+          echo "RUSTFLAGS='-C link-arg=-static'" >> $GITHUB_ENV
+        fi
+
     - uses: Swatinem/rust-cache@v2
       with:
         prefix-key: v0-precomp

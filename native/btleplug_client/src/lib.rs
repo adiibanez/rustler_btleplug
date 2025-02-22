@@ -6,11 +6,11 @@
 #![allow(non_local_definitions)]
 // #[rustler::nif(schedule = "DirtyCpu")]
 
-#[cfg(not(musl_target))]
+#[cfg(not(target_env = "musl"))]
 #[link(name = "btleplug_client")]
 extern {}
 
-#[cfg(musl_target)]
+#[cfg(target_env = "musl")]
 #[link(name = "btleplug_client", kind = "static")]
 extern {}
 

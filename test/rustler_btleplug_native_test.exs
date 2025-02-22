@@ -16,7 +16,7 @@ defmodule RustlerBtleplug.NativeTest do
     assert is_reference(resource)
   end
 
-  test "BLE default scanning lifecycle" do
+  test "BLE default scanning" do
     # {:ok, ble_resource} = Native.create_central()
     resource =
       Native.create_central()
@@ -32,7 +32,7 @@ defmodule RustlerBtleplug.NativeTest do
     assert is_reference(resource)
   end
 
-  test "BLE short scanning lifecycle" do
+  test "BLE short scanning" do
     # {:ok, ble_resource} = Native.create_central()
     resource =
       Native.create_central()
@@ -58,7 +58,7 @@ defmodule RustlerBtleplug.NativeTest do
     # assert not resource |> Native.is_scanning()
   end
 
-  test "BLE short scanning lifecycle before timeout" do
+  test "BLE short scanning before timeout" do
     # {:ok, ble_resource} = Native.create_central()
     resource =
       Native.create_central()
@@ -117,17 +117,9 @@ defmodule RustlerBtleplug.NativeTest do
     after
       500 -> flunk("Did not receive :btleplug_device_discovered message")
     end
-
-    # assert_receive {:btleplug_scan_stopped, _msg}
-
-    # assert_receive {:btleplug_device_discovered, peripheral_id}
-
-    # Process.sleep(1000)
-
-    # {status, peripheral_resource} = central_resource
   end
 
-  test "BLE connect to peripheral lifecycle" do
+  test "BLE connect to peripheral" do
     # {:ok, ble_resource} = Native.create_central()
     central_resource =
       Native.create_central()
@@ -163,14 +155,4 @@ defmodule RustlerBtleplug.NativeTest do
 
     # assert_receive {:btleplug_device_discovered, peripheral_id}
   end
-
-  # test "Device connection" do
-  #   # {:ok, ble_resource} = Native.create_central()
-  #   ble_resource = Native.create_central()
-  #   |> Native.start_scan()
-  #   # |> Native.connect_peripheral()
-  #   # {:ok, scanned_resource} = Native.start_scan(ble_resource)
-
-  #   assert _connected_resource = Native.connect_peripheral(ble_resource, "device_uuid_123")
-  # end
 end

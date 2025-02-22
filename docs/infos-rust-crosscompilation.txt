@@ -15,9 +15,7 @@ rustc --print target-list
 
 cargo build --target aarch64-apple-darwin
 
-
 git push --delete origin v0.0.1-alpha
-
 
 aarch64-apple-darwin
 aarch64-apple-ios

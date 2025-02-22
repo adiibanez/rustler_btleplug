@@ -94,73 +94,73 @@ jobs:
         cargo-args: ${{ matrix.job.cargo-args }}
         variant: ${{ matrix.job.variant }}
 
-    - name: Generate Checksums (Linux/macOS)
-      if: runner.os != 'Windows'
-      shell: bash
-      run: |
-        # Generate SHA256 checksum
-        if [[ "$RUNNER_OS" == "Linux" ]]; then
-          SHA256SUM=$(sha256sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
-        elif [[ "$RUNNER_OS" == "macOS" ]]; then
-          SHA256SUM=$(openssl dgst -sha256 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
-        fi
-        echo "SHA256SUM=$SHA256SUM" >> $GITHUB_ENV
+    # - name: Generate Checksums (Linux/macOS)
+    #   if: runner.os != 'Windows'
+    #   shell: bash
+    #   run: |
+    #     # Generate SHA256 checksum
+    #     if [[ "$RUNNER_OS" == "Linux" ]]; then
+    #       SHA256SUM=$(sha256sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+    #     elif [[ "$RUNNER_OS" == "macOS" ]]; then
+    #       SHA256SUM=$(openssl dgst -sha256 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
+    #     fi
+    #     echo "SHA256SUM=$SHA256SUM" >> $GITHUB_ENV
 
-        # Generate SHA1 checksum
-        if [[ "$RUNNER_OS" == "Linux" ]]; then
-          SHA1SUM=$(sha1sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
-        elif [[ "$RUNNER_OS" == "macOS" ]]; then
-          SHA1SUM=$(openssl dgst -sha1 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
-        fi
-        echo "SHA1SUM=$SHA1SUM" >> $GITHUB_ENV
+    #     # Generate SHA1 checksum
+    #     if [[ "$RUNNER_OS" == "Linux" ]]; then
+    #       SHA1SUM=$(sha1sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+    #     elif [[ "$RUNNER_OS" == "macOS" ]]; then
+    #       SHA1SUM=$(openssl dgst -sha1 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
+    #     fi
+    #     echo "SHA1SUM=$SHA1SUM" >> $GITHUB_ENV
 
-        # Generate MD5 checksum
-        if [[ "$RUNNER_OS" == "Linux" ]]; then
-          MD5SUM=$(md5sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
-        elif [[ "$RUNNER_OS" == "macOS" ]]; then
-          MD5SUM=$(openssl dgst -md5 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
-        fi
-        echo "MD5SUM=$MD5SUM" >> $GITHUB_ENV
+    #     # Generate MD5 checksum
+    #     if [[ "$RUNNER_OS" == "Linux" ]]; then
+    #       MD5SUM=$(md5sum ${{ steps.build-crate.outputs.file-path }} | awk '{print $1}')
+    #     elif [[ "$RUNNER_OS" == "macOS" ]]; then
+    #       MD5SUM=$(openssl dgst -md5 ${{ steps.build-crate.outputs.file-path }} | awk '{print $2}')
+    #     fi
+    #     echo "MD5SUM=$MD5SUM" >> $GITHUB_ENV
 
-    - name: Generate Checksums (Windows)
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        # Generate SHA256 checksum
-        $SHA256SUM = Get-FileHash -Algorithm SHA256 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash
-        echo "SHA256SUM=$SHA256SUM" >> $GITHUB_ENV
+    # - name: Generate Checksums (Windows)
+    #   if: runner.os == 'Windows'
+    #   shell: pwsh
+    #   run: |
+    #     # Generate SHA256 checksum
+    #     $SHA256SUM = Get-FileHash -Algorithm SHA256 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash
+    #     echo "SHA256SUM=$SHA256SUM" >> $GITHUB_ENV
 
-        # Generate SHA1 checksum
-        $SHA1SUM = Get-FileHash -Algorithm SHA1 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash
-        echo "SHA1SUM=$SHA1SUM" >> $GITHUB_ENV
+    #     # Generate SHA1 checksum
+    #     $SHA1SUM = Get-FileHash -Algorithm SHA1 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash
+    #     echo "SHA1SUM=$SHA1SUM" >> $GITHUB_ENV
 
-        # Generate MD5 checksum
-        $MD5SUM = Get-FileHash -Algorithm MD5 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash
-        echo "MD5SUM=$MD5SUM" >> $GITHUB_ENV
+    #     # Generate MD5 checksum
+    #     $MD5SUM = Get-FileHash -Algorithm MD5 ${{ steps.build-crate.outputs.file-path }} | Select-Object -ExpandProperty Hash
+    #     echo "MD5SUM=$MD5SUM" >> $GITHUB_ENV
 
     - name: Artifact attestation
       uses: actions/attest-build-provenance@v1
       with:
         subject-path: ${{ steps.build-crate.outputs.file-path }}
 
-    - name: Upload Artifact with Checksums
+    - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.build-crate.outputs.file-name }}
         path: ${{ steps.build-crate.outputs.file-path }}
         retention-days: 5
 
-    - name: Create Release Notes with Checksums
-      if: startsWith(github.ref, 'refs/tags/')
-      run: |
-        RELEASE_BODY="${{ github.event.release.body }}\n\n"
-        RELEASE_BODY+="- SHA256 Checksum: ${{ env.SHA256SUM }}\n"
-        RELEASE_BODY+="- SHA1 Checksum: ${{ env.SHA1SUM }}\n"
-        RELEASE_BODY+="- MD5 Checksum: ${{ env.MD5SUM }}\n"
+    # - name: Create Release Notes with Checksums
+    #   if: startsWith(github.ref, 'refs/tags/')
+    #   run: |
+    #     RELEASE_BODY="${{ github.event.release.body }}\n\n"
+    #     RELEASE_BODY+="- SHA256 Checksum: ${{ env.SHA256SUM }}\n"
+    #     RELEASE_BODY+="- SHA1 Checksum: ${{ env.SHA1SUM }}\n"
+    #     RELEASE_BODY+="- MD5 Checksum: ${{ env.MD5SUM }}\n"
 
-        echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
-        echo "$RELEASE_BODY" >> $GITHUB_ENV
-        echo "EOF" >> $GITHUB_ENV
+    #     echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+    #     echo "$RELEASE_BODY" >> $GITHUB_ENV
+    #     echo "EOF" >> $GITHUB_ENV
 
     - name: Publish archives and packages
       uses: softprops/action-gh-release@v2

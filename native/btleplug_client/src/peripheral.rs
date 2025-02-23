@@ -57,7 +57,7 @@ pub async fn discover_services_internal(
 ) -> bool {
     PeripheralState::set_state(peripheral_arc, PeripheralStateEnum::DiscoveringServices);
 
-    for attempt in 1..=3 {
+    for attempt in 1..=5 {
         debug!("🔍 [Attempt {}] Discovering services...", attempt);
 
         let peripheral_clone = {
@@ -71,7 +71,7 @@ pub async fn discover_services_internal(
         };
 
         if success {
-            tokio::time::sleep(Duration::from_millis(250)).await; // ⏳ Reduce wait time
+            tokio::time::sleep(Duration::from_millis(250)).await;
 
             let services = {
                 let state_guard = peripheral_arc.lock().unwrap();
@@ -89,7 +89,10 @@ pub async fn discover_services_internal(
             warn!("⚠️ Service discovery attempt {} failed.", attempt);
         }
 
-        tokio::time::sleep(Duration::from_millis(250)).await; // ⏳ Reduce retry wait
+        // back off a little in case of failures
+        let sleep_duration = 200 * attempt;
+        debug!("Sleeping a little after service discovery attempt nr: {} for {}ms.", attempt, sleep_duration);
+        tokio::time::sleep(Duration::from_millis(sleep_duration)).await;
     }
 
     warn!("❌ All service discovery attempts failed.");
@@ -104,6 +107,8 @@ pub fn connect(
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     let peripheral_arc = resource.0.clone();
 
+    let env_pid = env.pid().clone();
+
     RUNTIME.spawn(async move {
         let (peripheral, pid) = {
             let state_guard = peripheral_arc.lock().unwrap();
@@ -111,7 +116,8 @@ pub fn connect(
         };
 
         PeripheralState::set_state(&peripheral_arc, PeripheralStateEnum::Connecting);
-        debug!("🔗 Connecting to Peripheral: {:?}", peripheral.id());
+
+        info!("🔗 Connecting to Peripheral: {:?}, caller pid: {:?}, state pid: {:?}", peripheral.id(), env_pid.as_c_arg(), pid.as_c_arg());
 
         let mut connected = false;
         for attempt in 1..=3 {
@@ -150,11 +156,16 @@ pub fn subscribe(
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     let peripheral_arc = resource.0.clone();
 
+    let env_pid = env.pid().clone();
+
     RUNTIME.spawn(async move {
+
         let (peripheral, state, pid) = {
             let state_guard = peripheral_arc.lock().unwrap();
             (state_guard.peripheral.clone(), state_guard.state, state_guard.pid)
         };
+
+        info!("🔗 Subscribing to Peripheral: {:?}, caller pid: {:?}, state pid: {:?}", peripheral.id(), env_pid.as_c_arg(), pid.as_c_arg());
 
         if state != PeripheralStateEnum::ServicesDiscovered {
             warn!("⚠️ Services not yet discovered. Retrying...");
@@ -173,10 +184,10 @@ pub fn subscribe(
 
         match characteristic {
             Some(char) => {
-                info!("🔔 Subscribing to characteristic: {:?}", char.uuid);
+                debug!("🔔 Subscribing to characteristic: {:?}", char.uuid);
 
                 if !char.properties.contains(CharPropFlags::NOTIFY) {
-                    warn!("⚠️ Characteristic {:?} does NOT support notifications!", char.uuid);
+                    debug!("⚠️ Characteristic {:?} does NOT support notifications!", char.uuid);
                     return;
                 }
 
@@ -193,11 +204,11 @@ pub fn subscribe(
 
                     match timeout(Duration::from_millis(timeout_ms), peripheral.notifications()).await {
                         Ok(Ok(mut notifications)) => {
-                            info!("📡 Listening for characteristic updates...");
+                            debug!("📡 Listening for characteristic updates...");
 
                             while let Some(notification) = notifications.next().await {
                                 // ✅ **Log Values at INFO Level**
-                                info!(
+                                debug!(
                                     "📩 Value Update: {:?} (UUID: {:?})",
                                     notification.value, notification.uuid
                                 );
@@ -219,7 +230,7 @@ pub fn subscribe(
                     }
                 });
             }
-            None => warn!("⚠️ Characteristic not found: {}", characteristic_uuid),
+            None => info!("⚠️ Characteristic not found: {}", characteristic_uuid),
         }
     });
 

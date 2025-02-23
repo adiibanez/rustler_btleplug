@@ -52,7 +52,7 @@ impl CentralManagerState {
 
 #[rustler::nif]
 pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>, RustlerError> {
-    info!("Creating CentralManager...");
+    info!("Creating CentralManager... {:?}", pid.as_c_arg());
 
     let manager = RUNTIME
         .block_on(Manager::new())
@@ -265,13 +265,15 @@ pub fn start_scan(
     resource: ResourceArc<CentralRef>,
     duration_ms: u64,
 ) -> Result<ResourceArc<CentralRef>, RustlerError> {
-    info!("Starting BLE scan for {} ms...", duration_ms);
-
+    
     let resource_arc = resource.0.clone();
     let resource_arc_stop = resource_arc.clone();
 
+    let env_pid = env.pid().clone();
+
     RUNTIME.spawn(async move {
         let mut msg_env = OwnedEnv::new();
+        // let env_pid_str = pid.as_c_arg(); 
 
         let adapter = {
             let central_state = resource_arc.lock().unwrap();
@@ -282,6 +284,8 @@ pub fn start_scan(
             let central_state = resource_arc.lock().unwrap();
             central_state.pid
         };
+
+        info!("Starting BLE scan for {} ms..., caller pid: {:?}, state pid: {:?}", duration_ms, env_pid.as_c_arg(), pid.as_c_arg());
 
         if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
             warn!("Failed to start scan: {:?}", e);
@@ -327,6 +331,7 @@ pub fn start_scan(
 
 #[rustler::nif]
 pub fn stop_scan(
+    env: Env,
     resource: ResourceArc<CentralRef>,
 ) -> Result<ResourceArc<CentralRef>, RustlerError> {
     debug!("Stopping BLE scan...");
@@ -350,17 +355,21 @@ pub fn stop_scan(
 
 #[rustler::nif]
 pub fn find_peripheral(
+    env: Env,
     resource: ResourceArc<CentralRef>,
     uuid: String,
     timeout_ms: u64,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
-    info!("Looking for peripheral with UUID: {}", uuid);
 
     let resource_arc = resource.0.clone();
     let central_state = resource_arc.lock().unwrap();
 
     let adapter = central_state.adapter.clone();
     let pid = central_state.pid;
+
+    let env_pid = env.pid().clone();
+
+    info!("Looking for peripheral with UUID: {}, caller pid: {:?}, state pid: {:?}", uuid, env_pid.as_c_arg(), pid.as_c_arg());
 
     let peripherals = RUNTIME.block_on(async {
         timeout(Duration::from_millis(timeout_ms), adapter.peripherals())
@@ -389,16 +398,18 @@ pub fn find_peripheral(
 
 #[rustler::nif]
 pub fn find_peripheral_by_name(
+    env: Env,
     resource: ResourceArc<CentralRef>,
     name: String,
     timeout_ms: u64,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
-    info!("Looking for peripheral with name: {}", name);
 
     let resource_arc = resource.0.clone();
     let central_state = resource_arc.lock().unwrap();
     let adapter = central_state.adapter.clone();
     let pid = central_state.pid;
+
+    info!("Looking for peripheral with name: {}, caller pid: {:?}, state pid: {:?}", name, env.pid().as_c_arg(), pid.as_c_arg());
 
     let peripherals = RUNTIME.block_on(async {
         timeout(Duration::from_millis(timeout_ms), adapter.peripherals())

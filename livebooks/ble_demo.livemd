@@ -133,7 +133,7 @@ defmodule RustlerBtleplug.Genserver do
   end
 
   def connect() do
-    Logger.debug("client :connect #{uuid}")
+    Logger.debug("client :connect")
     GenServer.call(@name, {:connect})
   end
 
@@ -233,7 +233,7 @@ defmodule RustlerBtleplug.Genserver do
     end
   end
 
-  def handle_call({:connect, peripheral_ref}, _from, state) do
+  def handle_call({:connect, _peripheral_ref}, _from, state) do
     case state.peripheral do
       nil ->
         Logger.debug("No peripheral reference to connect.")
@@ -318,7 +318,6 @@ end
 sup_pid = ParentSupervisor.start_link([])
 
 # Process.alive?(:ble_genserver)
-
 # Output the supervision tree
 Kino.Process.sup_tree(ParentSupervisor)
 

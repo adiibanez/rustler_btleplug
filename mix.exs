@@ -1,7 +1,7 @@
 defmodule RustlerBtleplug.MixProject do
   use Mix.Project
 
-  @version "0.0.1-alpha"
+  @version "0.0.2-alpha"
   @source_url "https://github.com/adiibanez/rustler_btleplug"
   @dev? String.ends_with?(@version, "-dev")
   @force_build? System.get_env("BTLEPLUG_BUILD") in ["1", "true"]
@@ -12,7 +12,7 @@ defmodule RustlerBtleplug.MixProject do
       name: "Rustler btleplug",
       description: "Allows ble communication between elixir and rust",
       version: @version,
-      elixir: "~> 1.18",
+      elixir: "~> 1.15",
       # elixirc_paths: elixirc_paths(Mix.env()),
       package: package(),
       deps: deps(),
@@ -55,7 +55,6 @@ defmodule RustlerBtleplug.MixProject do
     ]
   end
 
-  # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
       {:rustler, ">= 0.31.0", optional: true},

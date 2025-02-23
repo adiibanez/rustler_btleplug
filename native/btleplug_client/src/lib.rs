@@ -29,6 +29,7 @@ mod atoms;
 mod central_manager;
 mod gatt_peripheral;
 mod peripheral;
+mod logging;
 
 #[macro_use]
 extern crate rustler;
@@ -36,12 +37,6 @@ extern crate rustler;
 extern crate rustler_codegen;
 
 use log::{debug, error, info, warn};
-
-use log::LevelFilter;
-use pretty_env_logger::env_logger;
-use pretty_env_logger::env_logger::Builder;
-use std::io::Write;
-
 use central_manager::*;
 use gatt_peripheral::*;
 use once_cell::sync::Lazy;
@@ -55,75 +50,34 @@ pub static RUNTIME: Lazy<Runtime> =
 
 fn on_load(env: Env, _info: Term) -> bool {
     // pretty_env_logger::init();
-
-    init_logger();
-
-    // formatted_builder()
-    //     .format(|buf, record| {
-    //         writeln!(
-    //             buf,
-    //             "[{}] {}:{} [{}] - {}",
-    //             chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-    //             record.file().unwrap_or("unknown"),
-    //             record.line().unwrap_or(0),
-    //             record.level(),
-    //             record.args()
-    //         )
-    //     })
-    //     .target(env_logger::Target::Stdout)  // ✅ Ensure it goes to stdout
-    //     .init();
-    // init_logger();
-
-    println!("[Rust] Initializing Rust NIF module...");
+    logging::init_log();
+    info!("Initializing Rust BLE NIF module ...");
     rustler::resource!(CentralRef, env);
     rustler::resource!(PeripheralRef, env);
     // rustler::resource!(GattPeripheralRef, env);
-    println!("[Rust] Rust NIF module loaded successfully.");
+    debug!("Rust NIF BLE module loaded successfully.");
     true
 }
 
 #[rustler::nif]
 pub fn test_string<'a>(env: Env<'a>, uuid: Term<'a>) -> Result<Term<'a>, RustlerError> {
-    println!("[Rust] Test string: {:?}", uuid);
+    debug!("Test string: {:?}", uuid);
     Ok(uuid)
 }
 
 #[rustler::nif]
-fn add(a: i64, b: i64) -> i64 {
-    a * b
+fn add(a: i64, b: i64) -> Result<i64, RustlerError> {
+    Ok(a + b)
 }
 
 #[rustler::nif]
-fn get_map() -> HashMap<String, HashMap<String, String>> {
+fn get_map() -> Result<HashMap<String, HashMap<String, String>>, RustlerError> {
     let mut map = HashMap::new();
     let mut inner_map = HashMap::new();
     inner_map.insert("inner_key1".to_string(), "inner_value1".to_string());
     inner_map.insert("inner_key2".to_string(), "inner_value2".to_string());
     map.insert("outer_key1".to_string(), inner_map);
-    map
-    //atoms::ok().encode(env)
-}
-
-fn init_logger() {
-    let mut builder = Builder::from_default_env(); // ✅ Reads RUST_LOG
-
-    builder
-        .format(|buf, record| {
-            let level_style = buf.default_level_style(record.level()); // 🔥 Colorize log level
-            writeln!(
-                buf,
-                "[{}] {}:{} [{}] - {}",
-                chrono::Local::now().format("%Y-%m-%d %H:%M:%S"),
-                record.file().unwrap_or("unknown"),
-                record.line().unwrap_or(0),
-                level_style.value(record.level()), // ✅ Apply color
-                record.args()
-            )
-        })
-        .target(env_logger::Target::Stdout) // ✅ Ensure logs go to stdout
-        .filter_level(LevelFilter::Info) // 🔹 DEFAULT to Info
-        .parse_default_env() // ✅ Allows RUST_LOG to override!
-        .init();
+    Ok(map)
 }
 
 rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load);

@@ -24,6 +24,7 @@ uuid = "1.14.0"
 log = "0.4.22"
 # env_logger = "0.11"
 pretty_env_logger = "0.5.0"
+atty = "0.2.4"
 chrono = "0.4.3"
 # { git = "https://github.com/uuid-rs/uuid.git", branch = "main" } # "1.4" #{ version = "1.4", features = ["serde"] }
 

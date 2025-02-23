@@ -1,8 +1,8 @@
-use std::env;
+use atty::Stream;
+use env_logger::{Builder, Target};
 use log::{debug, error, info, warn, LevelFilter};
 use pretty_env_logger::env_logger;
-use env_logger::{Builder, Target};
-use atty::Stream;
+use std::env;
 use std::io::{self, Write};
 
 pub fn init_log() {
@@ -21,9 +21,12 @@ pub fn init_log() {
 /// Determines the logging mode based on the `RUST_LOG_MODE` environment variable.
 /// Defaults to CLI if not set or set to "cli".
 fn get_log_mode() -> LogMode {
-    match env::var("RUST_LOG_MODE").unwrap_or_else(|_| "cli".to_string()).as_str() {
+    match env::var("RUST_LOG_MODE")
+        .unwrap_or_else(|_| "cli".to_string())
+        .as_str()
+    {
         "phoenix" => LogMode::Phoenix,
-        _ => LogMode::CLI,  // Default to CLI if not set or if set to something other than "phoenix"
+        _ => LogMode::CLI, // Default to CLI if not set or if set to something other than "phoenix"
     }
 }
 

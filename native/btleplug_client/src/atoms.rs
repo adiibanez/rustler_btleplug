@@ -16,14 +16,14 @@ rustler::atoms! {
     btleplug_scan_started,
     btleplug_scan_stopped,
 
-    btleplug_device_discovered,
-    btleplug_device_discovery_error,
-    btleplug_device_connected,
-    btleplug_device_updated,
-    btleplug_device_disconnected,
-    btleplug_device_not_found,
+    btleplug_peripheral_discovered,
+    btleplug_peripheral_discovery_error,
+    btleplug_peripheral_connected,
+    btleplug_peripheral_updated,
+    btleplug_peripheral_disconnected,
+    btleplug_peripheral_not_found,
 
-    btleplug_device_service_discovery_error,
+    btleplug_peripheral_service_discovery_error,
 
     btleplug_manufacturer_data_advertisement,
     btleplug_service_data_advertisement,
@@ -31,6 +31,3 @@ rustler::atoms! {
 
     btleplug_characteristic_value_changed,
 }
-
-//pub(crate)
-// use self::*;

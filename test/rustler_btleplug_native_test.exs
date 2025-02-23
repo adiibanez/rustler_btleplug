@@ -2,6 +2,16 @@ defmodule RustlerBtleplug.NativeTest do
   use ExUnit.Case, async: false
   alias RustlerBtleplug.Native
 
+  @ble_peripheral_name "Pressure"
+  @ble_characteristic_uuid "61d20a90-71a1-11ea-ab12-0800200c9a66"
+
+  @doc """
+  Some Standard characteristic UUIDs
+  heartrate: 00002a37-0000-1000-8000-00805f9b34fb
+  batteryLevel: 00002a19-0000-1000-8000-00805f9b34fb
+  deviceName: 00002a00-0000-1000-8000-00805f9b34fb
+  """
+
   test "Test string" do
     test_string = "test string"
     assert Native.test_string(test_string) == test_string, "Expected #{inspect(test_string)}"
@@ -32,7 +42,7 @@ defmodule RustlerBtleplug.NativeTest do
     Process.sleep(1000)
 
     assert_receive {:btleplug_scan_started, _msg}
-    assert_receive {:btleplug_device_discovered, _msg}
+    assert_receive {:btleplug_peripheral_discovered, _msg}
 
     assert_receive {:btleplug_scan_stopped, _msg}
 
@@ -51,9 +61,9 @@ defmodule RustlerBtleplug.NativeTest do
     assert_receive {:btleplug_scan_started, _msg}
 
     receive do
-      {:btleplug_device_discovered, _msg} -> :ok
+      {:btleplug_peripheral_discovered, _msg} -> :ok
     after
-      500 -> flunk("Did not receive :btleplug_device_discovered message")
+      500 -> flunk("Did not receive :btleplug_peripheral_discovered message")
     end
 
     receive do
@@ -67,22 +77,26 @@ defmodule RustlerBtleplug.NativeTest do
     # {:ok, ble_resource} = Native.create_central()
     resource =
       Native.create_central()
-      |> Native.start_scan(500)
+      |> Native.start_scan(1000)
 
     assert is_reference(resource)
 
     # assert resource |> Native.is_scanning()
     assert_receive {:btleplug_scan_started, _msg}
 
-    receive do
-      {:btleplug_device_discovered, _msg} ->
-        :ok
+    Process.sleep(500)
+    messages = :erlang.process_info(self(), :messages)
+    IO.inspect(messages, label: "messages")
 
-        Process.sleep(100)
+    receive do
+      {:btleplug_peripheral_discovered, _msg} ->
+        :ok
         refute_receive {:btleplug_scan_stopped, _msg}
     after
-      300 -> flunk("Did not receive :btleplug_device_discovered message")
+      1000 -> flunk("Did not receive :btleplug_peripheral_discovered message")
     end
+
+
   end
 
   test "BLE fail to find unknown peripheral" do
@@ -106,7 +120,7 @@ defmodule RustlerBtleplug.NativeTest do
     assert_receive {:btleplug_scan_started, _msg}
 
     receive do
-      {:btleplug_device_discovered, peripheral_id} ->
+      {:btleplug_peripheral_discovered, peripheral_id} ->
         :ok
 
         peripheral_resource =
@@ -116,7 +130,7 @@ defmodule RustlerBtleplug.NativeTest do
 
         assert is_reference(peripheral_resource)
     after
-      500 -> flunk("Did not receive :btleplug_device_discovered message")
+      2000 -> flunk("Did not receive :btleplug_peripheral_discovered message")
     end
   end
 
@@ -133,7 +147,7 @@ defmodule RustlerBtleplug.NativeTest do
     Process.sleep(2000)
 
     receive do
-      {:btleplug_device_discovered, peripheral_id} ->
+      {:btleplug_peripheral_discovered, peripheral_id} ->
         :ok
 
         IO.puts("Found peripheral: #{peripheral_id}")
@@ -141,23 +155,23 @@ defmodule RustlerBtleplug.NativeTest do
         peripheral_resource =
           central_resource
           |> Native.start_scan()
-          |> Native.find_peripheral_by_name("Pressure")
+          |> Native.find_peripheral_by_name(@ble_peripheral_name)
           |> Native.connect()
-          |> Native.subscribe("61d20a90-71a1-11ea-ab12-0800200c9a66")
+          |> Native.subscribe(@ble_characteristic_uuid)
 
         assert is_reference(peripheral_resource)
 
-        assert_receive {:btleplug_device_updated, _msg},
+        assert_receive {:btleplug_peripheral_updated, _msg},
                        timeout,
-                       "No :btleplug_device_updated received"
+                       "No :btleplug_peripheral_updated received"
 
-        assert_receive {:btleplug_device_connected, _msg},
+        assert_receive {:btleplug_peripheral_connected, _msg},
                        timeout,
-                       "No :btleplug_device_connected received"
+                       "No :btleplug_peripheral_connected received"
 
         # assert_receive {:btleplug_services_advertisement, _msg}, timeout, "No :btleplug_services_advertisement received"
         # assert_receive {:btleplug_service_data_advertisement, _msg}, timeout, "No :btleplug_service_data_advertisement received"
-        # assert_receive {:btleplug_device_connected, _msg}, timeout, "No :btleplug_device_connected received"
+        # assert_receive {:btleplug_peripheral_connected, _msg}, timeout, "No :btleplug_peripheral_connected received"
         assert_receive {:btleplug_characteristic_value_changed, _uuid, _value},
                        timeout,
                        "No :btleplug_characteristic_value_changed received"
@@ -166,9 +180,8 @@ defmodule RustlerBtleplug.NativeTest do
 
         # messages = :erlang.process_info(self(), :messages)
         # IO.inspect(messages, label: "messages")
-
     after
-      timeout * 2 -> flunk("Did not receive :btleplug_device_discovered message")
+      timeout * 2 -> flunk("Did not receive :btleplug_peripheral_discovered message")
     end
   end
 

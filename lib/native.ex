@@ -10,7 +10,7 @@ defmodule RustlerBtleplug.Native do
     otp_app: :rustler_btleplug,
     crate: :btleplug_client,
     base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v#{version}",
-    force_build: System.get_env("RUSTLER_PRECOMPILATION_EXAMPLE_BUILD") in ["1", "true"],
+    force_build: System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"],
     version: version
 
   @type central() :: reference()

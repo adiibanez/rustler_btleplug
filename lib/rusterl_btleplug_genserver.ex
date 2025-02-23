@@ -1,49 +1,3 @@
-# Rustler BLE playground
-
-```elixir
-Mix.install([
-  {:kino, "~> 0.12.0"},
-  # {:kino, github: "livebook-dev/kino"},
-  {:rustler_btleplug, "~> 0.0.4-alpha"}
-  # {:rustler_btleplug,
-  # path: "/Users/adrianibanez/Documents/projects/2024_sensor-platform/checkouts/rustler_btleplug",
-  #          },
-])
-```
-
-## Section
-
-<!-- livebook:{"reevaluate_automatically":true} -->
-
-```elixir
-require Logger
-alias RustlerBtleplug.Native
-
-
-defmodule RustlerBtleplug.Demo do
-  def start(
-        device_name \\ "Pressure",
-        characteristic_uuid \\ "61d20a90-71a1-11ea-ab12-0800200c9a66"
-      ) do
-    central = Native.create_central()
-    central = Native.start_scan(central, 5000)
-    # Process.sleep(500)
-    # peripheral = Native.find_peripheral_by_name(central, device_name)
-    # peripheral = Native.find_peripheral(central, "uuid")
-    Process.sleep(500)
-
-    # peripheral = Native.connect(peripheral)
-    # _peripheral = Native.subscribe(peripheral, characteristic_uuid)
-
-    Process.sleep(1000)
-
-    # peripheral = Native.disconnect(peripheral)
-    # Native.unsubscribe(peripheral, "61d20a90-71a1-11ea-ab12-0800200c9a66")
-  end
-end
-```
-
-```elixir
 defmodule RustlerBtleplug.Genserver do
   @name :ble_genserver
 
@@ -76,30 +30,27 @@ defmodule RustlerBtleplug.Genserver do
      }}
   end
 
-  def handle_info({:timer_timeout}, state) do
-  end
-
-  def handle_info({:btleplug_device_discovered, uuid}, state) do
-    Logger.debug("Device Discovered: #{uuid}")
-    new_state = update_state_with_message(state, {:btleplug_device_discovered, uuid})
+  def handle_info({:btleplug_peripheral_discovered, uuid}, state) do
+    Logger.debug("NIF Peripheral Discovered: #{uuid}")
+    new_state = update_state_with_message(state, {:btleplug_peripheral_discovered, uuid})
 
     {:noreply, new_state}
   end
 
-  def handle_info({:btleplug_device_connected, uuid}, state) do
-    Logger.debug("Device Connected: #{uuid}")
-    new_state = update_state_with_message(state, {:btleplug_device_connected, uuid})
+  def handle_info({:btleplug_peripheral_connected, uuid}, state) do
+    Logger.debug("NIF Peripheral Connected: #{uuid}")
+    new_state = update_state_with_message(state, {:btleplug_peripheral_connected, uuid})
     {:noreply, new_state}
   end
 
-  def handle_info({:btleplug_device_disconnected, uuid}, state) do
-    Logger.debug("Device Disconnected: #{uuid}")
-    new_state = update_state_with_message(state, {:btleplug_device_disconnected, uuid})
+  def handle_info({:btleplug_peripheral_disconnected, uuid}, state) do
+    Logger.debug("NIF Peripheral Disconnected: #{uuid}")
+    new_state = update_state_with_message(state, {:btleplug_peripheral_disconnected, uuid})
     {:noreply, new_state}
   end
 
   def handle_info({:btleplug_characteristic_value_changed, uuid, value}, state) do
-    Logger.debug("Characteristic Value Changed for #{uuid}: #{value}")
+    Logger.debug("NIF Characteristic Value Changed for #{uuid}: #{value}")
 
     new_state =
       update_state_with_message(state, {:btleplug_characteristic_value_changed, uuid, value})
@@ -108,7 +59,7 @@ defmodule RustlerBtleplug.Genserver do
   end
 
   def handle_info(msg, state) do
-    Logger.debug("Rust msg received : #{inspect(msg)}")
+    Logger.debug("NIF msg received : #{inspect(msg)}")
     new_state = update_state_with_message(state, msg)
     {:noreply, new_state}
   end
@@ -133,29 +84,17 @@ defmodule RustlerBtleplug.Genserver do
   end
 
   def connect() do
-    Logger.debug("client :connect #{uuid}")
+    Logger.debug("client :connect")
     GenServer.call(@name, {:connect})
   end
 
   def subscribe(uuid) do
-    Logger.debug("client :subscribe #{uuid}")
+    Logger.debug("client :subscribe characteristic uuid: #{uuid}")
     GenServer.call(@name, {:subscribe, uuid})
   end
 
   def get_messages() do
     GenServer.call(@name, {:get_messages})
-  end
-
-  def handle_call({:create_central}, _from, state) do
-    case RustlerBtleplug.Native.create_central() do
-      central_ref ->
-        GenServer.cast(@name, {:set_central, central_ref})
-        Logger.debug("Central Created and Reference Stored!")
-        {:reply, {:ok, central_ref}, state}
-
-      {:error, reason} ->
-        {:error, reason}
-    end
   end
 
   def handle_cast({:set_central, central_ref}, state) do
@@ -178,15 +117,12 @@ defmodule RustlerBtleplug.Genserver do
       central_ref ->
         # Call NIF to stop the scan using the central reference
         case RustlerBtleplug.Native.start_scan(central_ref) do
-          _central_ref ->
-            Logger.debug("Scan Started.")
-
-            Process.sleep(1000)
-
-            {:noreply, state}
-
           {:error, reason} ->
             Logger.debug("Failed to start scan: #{reason}")
+            {:noreply, state}
+          _central_ref ->
+            Logger.debug("Scan Started.")
+            Process.sleep(1000)
             {:noreply, state}
         end
     end
@@ -203,14 +139,26 @@ defmodule RustlerBtleplug.Genserver do
       central_ref ->
         # Call NIF to stop the scan using the central reference
         case RustlerBtleplug.Native.stop_scan(central_ref) do
-          _central_ref ->
-            Logger.debug("Scan Stopped.")
-            {:noreply, state}
-
           {:error, reason} ->
             Logger.debug("Failed to stop scan: #{reason}")
             {:noreply, state}
+          _central_ref ->
+            Logger.debug("Scan Stopped.")
+            {:noreply, state}
         end
+    end
+  end
+
+
+
+  def handle_call({:create_central}, _from, state) do
+    case RustlerBtleplug.Native.create_central() do
+      {:error, reason} ->
+        {:error, reason}
+      central_ref ->
+        GenServer.cast(@name, {:set_central, central_ref})
+        Logger.debug("Central Created and Reference Stored!")
+        {:reply, {:ok, central_ref}, state}
     end
   end
 
@@ -222,18 +170,17 @@ defmodule RustlerBtleplug.Genserver do
 
       central_ref ->
         case RustlerBtleplug.Native.find_peripheral_by_name(central_ref, device_name) do
-          peripheral_ref ->
-            Logger.debug("Device #{device_name} found #{inspect(peripheral_ref)}")
-            {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
-
           {:error, reason} ->
             Logger.debug("Failed to find #{device_name}: #{reason}")
             {:noreply, state}
+          peripheral_ref ->
+            Logger.debug("Peripheral #{device_name} found #{inspect(peripheral_ref)}")
+            {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
         end
     end
   end
 
-  def handle_call({:connect, peripheral_ref}, _from, state) do
+  def handle_call({:connect, _peripheral_ref}, _from, state) do
     case state.peripheral do
       nil ->
         Logger.debug("No peripheral reference to connect.")
@@ -241,13 +188,12 @@ defmodule RustlerBtleplug.Genserver do
 
       peripheral_ref ->
         case RustlerBtleplug.Native.connect(peripheral_ref) do
-          peripheral_ref ->
-            Logger.debug("Connecting to #{inspect(peripheral_ref)}")
-            {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
-
           {:error, reason} ->
             Logger.debug("Failed to connect to #{inspect(peripheral_ref)}: #{reason}")
             {:noreply, state}
+          peripheral_ref ->
+            Logger.debug("Connecting to #{inspect(peripheral_ref)}")
+            {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
         end
     end
   end
@@ -260,13 +206,12 @@ defmodule RustlerBtleplug.Genserver do
 
       peripheral_ref ->
         case RustlerBtleplug.Native.subscribe(peripheral_ref, uuid) do
-          peripheral_ref ->
-            Logger.debug("Subscribing to #{uuid} #{inspect(peripheral_ref)}")
-            {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
-
           {:error, reason} ->
             Logger.debug("Failed to subscribe to #{uuid}: #{reason}")
             {:noreply, state}
+          peripheral_ref ->
+            Logger.debug("Subscribing to #{uuid} #{inspect(peripheral_ref)}")
+            {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
         end
     end
   end
@@ -280,62 +225,3 @@ defmodule RustlerBtleplug.Genserver do
     %{state | messages: [message | state.messages]}
   end
 end
-
-```
-
-<!-- livebook:{"reevaluate_automatically":true} -->
-
-```elixir
-
-
-ble_device_name = "Pressure"
-ble_characteristic_uuid = "61d20a90-71a1-11ea-ab12-0800200c9a66"
-
-defmodule ParentSupervisor do
-  use Supervisor
-
-  def start_link(init_arg) do
-    Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
-  end
-
-  @impl true
-  def init(_init_arg) do
-    IO.puts("Starting Supervisor: #{inspect(__MODULE__)}")
-
-    children = [
-      RustlerBtleplug.Genserver
-    ]
-
-    Supervisor.init(children, strategy: :one_for_one)
-  end
-end
-
-if is_pid(Process.whereis(ParentSupervisor)) do
-  Supervisor.stop(ParentSupervisor)
-end
-
-# Start the supervision tree
-sup_pid = ParentSupervisor.start_link([])
-
-# Process.alive?(:ble_genserver)
-
-# Output the supervision tree
-Kino.Process.sup_tree(ParentSupervisor)
-
-Kino.Process.render_seq_trace(self(), fn ->
-  {:ok, central_ref} = RustlerBtleplug.Genserver.create_central()
-  
-  IO.puts("Is central_ref a reference: #{inspect(is_reference(central_ref))}")
-  RustlerBtleplug.Genserver.start_scan()
-  Process.sleep(500)
-  RustlerBtleplug.Genserver.find_peripheral_by_name(ble_device_name)
-  Process.sleep(500)
-  RustlerBtleplug.Genserver.connect()
-  Process.sleep(500)
-  RustlerBtleplug.Genserver.subscribe()
-
-end)
-
-# Kino.Process.app_tree(:logger)
-# RustlerBtleplug.Demo.start()
-```

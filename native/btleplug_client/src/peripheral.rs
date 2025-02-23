@@ -27,7 +27,7 @@ pub enum PeripheralStateEnum {
 pub struct PeripheralState {
     pub pid: LocalPid,
     pub peripheral: Peripheral,
-    pub state: PeripheralStateEnum,  
+    pub state: PeripheralStateEnum,
 }
 
 impl PeripheralState {
@@ -35,7 +35,7 @@ impl PeripheralState {
         PeripheralState {
             pid,
             peripheral,
-            state: PeripheralStateEnum::Disconnected, 
+            state: PeripheralStateEnum::Disconnected,
         }
     }
 
@@ -66,7 +66,12 @@ pub async fn discover_services_internal(
             state_guard.peripheral.clone()
         };
 
-        let success = match timeout(Duration::from_millis(timeout_ms), peripheral_clone.discover_services()).await {
+        let success = match timeout(
+            Duration::from_millis(timeout_ms),
+            peripheral_clone.discover_services(),
+        )
+        .await
+        {
             Ok(Ok(_)) => true,
             _ => false,
         };
@@ -92,7 +97,10 @@ pub async fn discover_services_internal(
 
         // back off a little in case of failures
         let sleep_duration = 200 * attempt;
-        debug!("Sleeping a little after service discovery attempt nr: {} for {}ms.", attempt, sleep_duration);
+        debug!(
+            "Sleeping a little after service discovery attempt nr: {} for {}ms.",
+            attempt, sleep_duration
+        );
         tokio::time::sleep(Duration::from_millis(sleep_duration)).await;
     }
 
@@ -118,7 +126,12 @@ pub fn connect(
 
         PeripheralState::set_state(&peripheral_arc, PeripheralStateEnum::Connecting);
 
-        info!("🔗 Connecting to Peripheral: {:?}, caller pid: {:?}, state pid: {:?}", peripheral.id(), env_pid.as_c_arg(), pid.as_c_arg());
+        info!(
+            "🔗 Connecting to Peripheral: {:?}, caller pid: {:?}, state pid: {:?}",
+            peripheral.id(),
+            env_pid.as_c_arg(),
+            pid.as_c_arg()
+        );
 
         let mut connected = false;
         for attempt in 1..=3 {
@@ -148,8 +161,6 @@ pub fn connect(
     Ok(resource)
 }
 
-
-
 #[rustler::nif]
 pub fn disconnect(
     env: Env,
@@ -168,7 +179,12 @@ pub fn disconnect(
 
         PeripheralState::set_state(&peripheral_arc, PeripheralStateEnum::Disconnecting);
 
-        info!("🔗 Disconnecting from Peripheral: {:?}, caller pid: {:?}, state pid: {:?}", peripheral.id(), env_pid.as_c_arg(), pid.as_c_arg());
+        info!(
+            "🔗 Disconnecting from Peripheral: {:?}, caller pid: {:?}, state pid: {:?}",
+            peripheral.id(),
+            env_pid.as_c_arg(),
+            pid.as_c_arg()
+        );
 
         let mut disconnected = false;
         match timeout(Duration::from_millis(timeout_ms), peripheral.disconnect()).await {
@@ -192,31 +208,33 @@ pub fn disconnect(
     Ok(resource)
 }
 
-
-
-
-
-
-
 #[rustler::nif]
 pub fn subscribe(
     env: Env,
     resource: ResourceArc<PeripheralRef>,
     characteristic_uuid: String,
-    timeout_ms: u64, 
+    timeout_ms: u64,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     let peripheral_arc = resource.0.clone();
 
     let env_pid = env.pid().clone();
 
     RUNTIME.spawn(async move {
-
         let (peripheral, state, pid) = {
             let state_guard = peripheral_arc.lock().unwrap();
-            (state_guard.peripheral.clone(), state_guard.state, state_guard.pid)
+            (
+                state_guard.peripheral.clone(),
+                state_guard.state,
+                state_guard.pid,
+            )
         };
 
-        info!("🔗 Subscribing to Peripheral: {:?}, caller pid: {:?}, state pid: {:?}", peripheral.id(), env_pid.as_c_arg(), pid.as_c_arg());
+        info!(
+            "🔗 Subscribing to Peripheral: {:?}, caller pid: {:?}, state pid: {:?}",
+            peripheral.id(),
+            env_pid.as_c_arg(),
+            pid.as_c_arg()
+        );
 
         if state != PeripheralStateEnum::ServicesDiscovered {
             warn!("⚠️ Services not yet discovered. Retrying...");
@@ -238,11 +256,19 @@ pub fn subscribe(
                 debug!("🔔 Subscribing to characteristic: {:?}", char.uuid);
 
                 if !char.properties.contains(CharPropFlags::NOTIFY) {
-                    debug!("⚠️ Characteristic {:?} does NOT support notifications!", char.uuid);
+                    debug!(
+                        "⚠️ Characteristic {:?} does NOT support notifications!",
+                        char.uuid
+                    );
                     return;
                 }
 
-                match timeout(Duration::from_millis(timeout_ms), peripheral.subscribe(&char)).await {
+                match timeout(
+                    Duration::from_millis(timeout_ms),
+                    peripheral.subscribe(&char),
+                )
+                .await
+                {
                     Ok(Ok(_)) => info!("✅ Subscribed to characteristic: {:?}", char.uuid),
                     _ => {
                         warn!("❌ Failed to subscribe to {:?}", char.uuid);
@@ -253,7 +279,12 @@ pub fn subscribe(
                 tokio::spawn(async move {
                     let mut msg_env = OwnedEnv::new();
 
-                    match timeout(Duration::from_millis(timeout_ms), peripheral.notifications()).await {
+                    match timeout(
+                        Duration::from_millis(timeout_ms),
+                        peripheral.notifications(),
+                    )
+                    .await
+                    {
                         Ok(Ok(mut notifications)) => {
                             debug!("📡 Listening for characteristic updates...");
 
@@ -264,17 +295,22 @@ pub fn subscribe(
                                     notification.value, notification.uuid
                                 );
 
-                                msg_env.send_and_clear(&pid, |env| {
-                                    (
-                                        atoms::btleplug_characteristic_value_changed(),
-                                        notification.uuid.to_string(),
-                                        notification.value.clone(),
-                                    )
-                                        .encode(env)
-                                }).ok();
+                                msg_env
+                                    .send_and_clear(&pid, |env| {
+                                        (
+                                            atoms::btleplug_characteristic_value_changed(),
+                                            notification.uuid.to_string(),
+                                            notification.value.clone(),
+                                        )
+                                            .encode(env)
+                                    })
+                                    .ok();
                             }
 
-                            warn!("⚠️ Notifications stream ended for UUID: {:?}", characteristic_uuid);
+                            warn!(
+                                "⚠️ Notifications stream ended for UUID: {:?}",
+                                characteristic_uuid
+                            );
                         }
                         Ok(Err(e)) => warn!("❌ Failed to start notifications: {:?}", e),
                         Err(_) => warn!("⏳ Timeout while waiting for notifications."),
@@ -287,7 +323,6 @@ pub fn subscribe(
 
     Ok(resource)
 }
-
 
 #[rustler::nif]
 pub fn unsubscribe(
@@ -303,10 +338,19 @@ pub fn unsubscribe(
     RUNTIME.spawn(async move {
         let (peripheral, state, pid) = {
             let state_guard = peripheral_arc.lock().unwrap();
-            (state_guard.peripheral.clone(), state_guard.state, state_guard.pid)
+            (
+                state_guard.peripheral.clone(),
+                state_guard.state,
+                state_guard.pid,
+            )
         };
 
-        info!("🔗 Unsubscribing from Peripheral: {:?}, caller pid: {:?}, state pid: {:?}", peripheral.id(), env_pid.as_c_arg(), pid.as_c_arg());
+        info!(
+            "🔗 Unsubscribing from Peripheral: {:?}, caller pid: {:?}, state pid: {:?}",
+            peripheral.id(),
+            env_pid.as_c_arg(),
+            pid.as_c_arg()
+        );
 
         if state != PeripheralStateEnum::ServicesDiscovered {
             warn!("⚠️ Services not yet discovered. Retrying...");
@@ -328,11 +372,19 @@ pub fn unsubscribe(
                 debug!("🔔 Unsubscribing from characteristic: {:?}", char.uuid);
 
                 if !char.properties.contains(CharPropFlags::NOTIFY) {
-                    debug!("⚠️ Characteristic {:?} does NOT support notifications!", char.uuid);
+                    debug!(
+                        "⚠️ Characteristic {:?} does NOT support notifications!",
+                        char.uuid
+                    );
                     return;
                 }
 
-                match timeout(Duration::from_millis(timeout_ms), peripheral.unsubscribe(&char)).await {
+                match timeout(
+                    Duration::from_millis(timeout_ms),
+                    peripheral.unsubscribe(&char),
+                )
+                .await
+                {
                     Ok(Ok(_)) => info!("✅ Unsubscribed from characteristic: {:?}", char.uuid),
                     _ => {
                         warn!("❌ Failed to unsubscribe from {:?}", char.uuid);

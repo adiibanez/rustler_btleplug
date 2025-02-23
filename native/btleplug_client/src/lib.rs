@@ -28,17 +28,17 @@ static GLOBAL: MiMalloc = MiMalloc;
 mod atoms;
 mod central_manager;
 mod gatt_peripheral;
-mod peripheral;
 mod logging;
+mod peripheral;
 
 #[macro_use]
 extern crate rustler;
 #[macro_use]
 extern crate rustler_codegen;
 
-use log::{debug, error, info, warn};
 use central_manager::*;
 use gatt_peripheral::*;
+use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use peripheral::*;
 use rustler::{Env, Error as RustlerError, Term};

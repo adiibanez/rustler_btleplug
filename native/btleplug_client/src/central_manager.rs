@@ -112,7 +112,7 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                     let uuid = id.to_string();
                     info!("Device discovered - UUID: {}", uuid);
                     match msg_env.send_and_clear(&pid, |env| {
-                        (atoms::btleplug_device_discovered(), uuid).encode(env)
+                        (atoms::btleplug_peripheral_discovered(), uuid).encode(env)
                     }) {
                         Ok(_) => debug!("Successfully sent device discovery message"),
                         Err(e) => debug!(
@@ -126,7 +126,7 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                     let uuid = id.to_string();
                     info!("Device connected - UUID: {}", uuid);
                     match msg_env.send_and_clear(&pid, |env| {
-                        (atoms::btleplug_device_connected(), uuid).encode(env)
+                        (atoms::btleplug_peripheral_connected(), uuid).encode(env)
                     }) {
                         Ok(_) => debug!("Successfully sent device connected message"),
                         Err(e) => debug!(
@@ -140,7 +140,7 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                     let uuid = id.to_string();
                     info!("Device disconnected - UUID: {}", uuid);
                     match msg_env.send_and_clear(&pid, |env| {
-                        (atoms::btleplug_device_disconnected(), uuid).encode(env)
+                        (atoms::btleplug_peripheral_disconnected(), uuid).encode(env)
                     }) {
                         Ok(_) => debug!("Successfully sent device disconnected message"),
                         Err(e) => debug!(
@@ -239,7 +239,7 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                     let uuid = id.to_string();
                     debug!("Device updated - UUID: {}", uuid);
                     match msg_env.send_and_clear(&pid, |env| {
-                        (atoms::btleplug_device_updated(), uuid).encode(env)
+                        (atoms::btleplug_peripheral_updated(), uuid).encode(env)
                     }) {
                         Ok(_) => debug!("Successfully sent device updated message"),
                         Err(e) => debug!(
@@ -265,7 +265,6 @@ pub fn start_scan(
     resource: ResourceArc<CentralRef>,
     duration_ms: u64,
 ) -> Result<ResourceArc<CentralRef>, RustlerError> {
-    
     let resource_arc = resource.0.clone();
     let resource_arc_stop = resource_arc.clone();
 
@@ -273,7 +272,7 @@ pub fn start_scan(
 
     RUNTIME.spawn(async move {
         let mut msg_env = OwnedEnv::new();
-        // let env_pid_str = pid.as_c_arg(); 
+        // let env_pid_str = pid.as_c_arg();
 
         let adapter = {
             let central_state = resource_arc.lock().unwrap();
@@ -285,7 +284,12 @@ pub fn start_scan(
             central_state.pid
         };
 
-        info!("Starting BLE scan for {} ms..., caller pid: {:?}, state pid: {:?}", duration_ms, env_pid.as_c_arg(), pid.as_c_arg());
+        info!(
+            "Starting BLE scan for {} ms..., caller pid: {:?}, state pid: {:?}",
+            duration_ms,
+            env_pid.as_c_arg(),
+            pid.as_c_arg()
+        );
 
         if let Err(e) = adapter.start_scan(ScanFilter::default()).await {
             warn!("Failed to start scan: {:?}", e);
@@ -360,7 +364,6 @@ pub fn find_peripheral(
     uuid: String,
     timeout_ms: u64,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
-
     let resource_arc = resource.0.clone();
     let central_state = resource_arc.lock().unwrap();
 
@@ -369,7 +372,12 @@ pub fn find_peripheral(
 
     let env_pid = env.pid().clone();
 
-    info!("Looking for peripheral with UUID: {}, caller pid: {:?}, state pid: {:?}", uuid, env_pid.as_c_arg(), pid.as_c_arg());
+    info!(
+        "Looking for peripheral with UUID: {}, caller pid: {:?}, state pid: {:?}",
+        uuid,
+        env_pid.as_c_arg(),
+        pid.as_c_arg()
+    );
 
     let peripherals = RUNTIME.block_on(async {
         timeout(Duration::from_millis(timeout_ms), adapter.peripherals())
@@ -403,13 +411,17 @@ pub fn find_peripheral_by_name(
     name: String,
     timeout_ms: u64,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
-
     let resource_arc = resource.0.clone();
     let central_state = resource_arc.lock().unwrap();
     let adapter = central_state.adapter.clone();
     let pid = central_state.pid;
 
-    info!("Looking for peripheral with name: {}, caller pid: {:?}, state pid: {:?}", name, env.pid().as_c_arg(), pid.as_c_arg());
+    info!(
+        "Looking for peripheral with name: {}, caller pid: {:?}, state pid: {:?}",
+        name,
+        env.pid().as_c_arg(),
+        pid.as_c_arg()
+    );
 
     let peripherals = RUNTIME.block_on(async {
         timeout(Duration::from_millis(timeout_ms), adapter.peripherals())

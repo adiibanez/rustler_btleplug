@@ -120,7 +120,6 @@ defmodule RustlerBtleplug.NativeTest do
   end
 
   test "BLE connect to peripheral" do
-
     timeout = 5000
 
     # {:ok, ble_resource} = Native.create_central()
@@ -151,13 +150,20 @@ defmodule RustlerBtleplug.NativeTest do
 
         assert is_reference(peripheral_resource)
 
-        assert_receive {:btleplug_device_updated, _msg}, timeout, "No :btleplug_device_updated received"
-        assert_receive {:btleplug_device_connected, _msg}, timeout, "No :btleplug_device_connected received"
-        #assert_receive {:btleplug_services_advertisement, _msg}, timeout, "No :btleplug_services_advertisement received"
-        #assert_receive {:btleplug_service_data_advertisement, _msg}, timeout, "No :btleplug_service_data_advertisement received"
-        #assert_receive {:btleplug_device_connected, _msg}, timeout, "No :btleplug_device_connected received"
-        assert_receive {:btleplug_characteristic_value_changed, _uuid, _value}, timeout, "No :btleplug_characteristic_value_changed received"
+        assert_receive {:btleplug_device_updated, _msg},
+                       timeout,
+                       "No :btleplug_device_updated received"
 
+        assert_receive {:btleplug_device_connected, _msg},
+                       timeout,
+                       "No :btleplug_device_connected received"
+
+        # assert_receive {:btleplug_services_advertisement, _msg}, timeout, "No :btleplug_services_advertisement received"
+        # assert_receive {:btleplug_service_data_advertisement, _msg}, timeout, "No :btleplug_service_data_advertisement received"
+        # assert_receive {:btleplug_device_connected, _msg}, timeout, "No :btleplug_device_connected received"
+        assert_receive {:btleplug_characteristic_value_changed, _uuid, _value},
+                       timeout,
+                       "No :btleplug_characteristic_value_changed received"
 
         Process.sleep(1000)
 

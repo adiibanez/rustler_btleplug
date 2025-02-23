@@ -20,7 +20,7 @@ use crate::RUNTIME;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use tokio::time::{timeout, sleep, Duration};
+use tokio::time::{sleep, timeout, Duration};
 
 pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>);
 
@@ -75,13 +75,8 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
     let event_receiver_clone = event_receiver.clone();
     let event_sender_clone = event_sender.clone();
 
-    let state = CentralManagerState::new(
-        pid,
-        manager,
-        adapter.clone(),
-        event_sender,
-        event_receiver,
-    );
+    let state =
+        CentralManagerState::new(pid, manager, adapter.clone(), event_sender, event_receiver);
     let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
     // let pid = env.pid();
 
@@ -417,7 +412,9 @@ pub fn find_peripheral_by_name(
             timeout(Duration::from_millis(timeout_ms), peripheral.properties())
                 .await
                 .map_err(|_| RustlerError::Term(Box::new("Timeout while fetching properties")))?
-                .map_err(|e| RustlerError::Term(Box::new(format!("Failed to get properties: {}", e))))
+                .map_err(|e| {
+                    RustlerError::Term(Box::new(format!("Failed to get properties: {}", e)))
+                })
         })?;
 
         if let Some(peripheral_name) = properties.unwrap().local_name {

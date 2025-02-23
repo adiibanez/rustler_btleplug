@@ -21,7 +21,6 @@ defmodule RustlerBtleplug.Native do
 
   @default_timeout 2000
 
-
   @spec init(map()) :: {:ok, central()} | {:error, term()}
   def init(_opts \\ %{}), do: error()
 
@@ -45,7 +44,8 @@ defmodule RustlerBtleplug.Native do
   @spec find_peripheral(central(), uuid(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
   def find_peripheral(_central, _uuid, _timeout \\ @default_timeout), do: error()
 
-  @spec find_peripheral_by_name(central(), String.t(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
+  @spec find_peripheral_by_name(central(), String.t(), Number.t()) ::
+          {:ok, peripheral()} | {:error, term()}
   def find_peripheral_by_name(_central, _name, _timeout \\ @default_timeout), do: error()
 
   @spec connect(peripheral(), Number.t()) :: {:ok, peripheral()} | {:error, term()}

@@ -19,6 +19,8 @@ defmodule RustlerBtleplug.Native do
   @type uuid() :: String.t()
   @type mac() :: String.t()
 
+  @default_timeout 2000
+
 
   @spec init(map()) :: {:ok, central()} | {:error, term()}
   def init(_opts \\ %{}), do: error()
@@ -40,15 +42,17 @@ defmodule RustlerBtleplug.Native do
   # def get_peripheral(_central, _uuid), do: error()
 
   # scan and find peripheral
-  @spec find_peripheral(central(), uuid()) :: {:ok, peripheral()} | {:error, term()}
-  def find_peripheral(_central, _uuid), do: error()
+  @spec find_peripheral(central(), uuid(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
+  def find_peripheral(_central, _uuid, _timeout \\ @default_timeout), do: error()
 
-  @spec find_peripheral_by_name(central(), String.t()) :: {:ok, peripheral()} | {:error, term()}
-  def find_peripheral_by_name(_central, _name), do: error()
+  @spec find_peripheral_by_name(central(), String.t(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
+  def find_peripheral_by_name(_central, _name, _timeout \\ @default_timeout), do: error()
 
-  @spec connect(peripheral()) :: {:ok, peripheral()} | {:error, term()}
-  def connect(_peripheral), do: error()
-  def subscribe(_peripheral, _characteristics), do: error()
+  @spec connect(peripheral(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
+  def connect(_peripheral, _timeout \\ @default_timeout), do: error()
+
+  @spec subscribe(peripheral(), uuid(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
+  def subscribe(_peripheral, _characteristic, _timeout \\ @default_timeout), do: error()
 
   # @spec create_gatt_peripheral(String.t(), Number.t()) ::
   #         {:ok, gatt_peripheral()} | {:error, term()}

@@ -1,10 +1,10 @@
 %{
-  "btleplug_client-v0.0.1-alpha-nif-2.15-x86_64-pc-windows-msvc.dll.tar.gz" => "sha256:2d1413c6d1b695857e4d9b54fe1d9c682bb2ccbf56640ce874a71c5e25629171",
-  "libbtleplug_client-v0.0.1-alpha-nif-2.15-aarch64-apple-darwin.so.tar.gz" => "sha256:7e0ffe839321cd3070e801d148e5a1ec94d2805f35decbb22f0b06aed69540c2",
-  "libbtleplug_client-v0.0.1-alpha-nif-2.15-aarch64-unknown-linux-gnu.so.tar.gz" => "sha256:7f8b25656bebdda187c3664f200f5e5cbdab5cea3a876b2484af16a717545820",
-  "libbtleplug_client-v0.0.1-alpha-nif-2.15-aarch64-unknown-linux-musl.so.tar.gz" => "sha256:8eca296ee6c719da62d0029edfc3f1dede0c7856eb049f391734b4003a83f076",
-  "libbtleplug_client-v0.0.1-alpha-nif-2.15-arm-unknown-linux-gnueabihf.so.tar.gz" => "sha256:8e673c41106dd052dd96b5f31255c56674368d32f0273226e4710e742d814f6c",
-  "libbtleplug_client-v0.0.1-alpha-nif-2.15-x86_64-apple-darwin.so.tar.gz" => "sha256:da626bbe4984acddca891652bba1bac737c3619fbbe36afe6f7334d2de9aed6a",
-  "libbtleplug_client-v0.0.1-alpha-nif-2.15-x86_64-unknown-linux-gnu.so.tar.gz" => "sha256:30c349d8ca5ce5263fd93deab4fb58005fa8121c0f5ec6a628edd14c30627668",
-  "libbtleplug_client-v0.0.1-alpha-nif-2.15-x86_64-unknown-linux-musl.so.tar.gz" => "sha256:c30a8143189e4c2996c6cbc1be54537e4b6e124c3bf4d53a38c68b8c40defea4",
+  "btleplug_client-v0.0.2-alpha-nif-2.15-x86_64-pc-windows-msvc.dll.tar.gz" => "sha256:edbae2ad3484a25c28bb3097c8a0ae71ac1cefabc2588686eb6ab62274927486",
+  "libbtleplug_client-v0.0.2-alpha-nif-2.15-aarch64-apple-darwin.so.tar.gz" => "sha256:ba85d59090d1768ddc34b8aaebe1df8d53adf2b4fb75aa131c2dac54379d054d",
+  "libbtleplug_client-v0.0.2-alpha-nif-2.15-aarch64-unknown-linux-gnu.so.tar.gz" => "sha256:e018858e8164ab4b484e5eb4e103c55af71cb5be201526d9712cca518b1cbdda",
+  "libbtleplug_client-v0.0.2-alpha-nif-2.15-aarch64-unknown-linux-musl.so.tar.gz" => "sha256:3b99dc1e0780697000f18047e2c3a119aca0ab6a3dfb8b41bf5126d3cfaa7070",
+  "libbtleplug_client-v0.0.2-alpha-nif-2.15-arm-unknown-linux-gnueabihf.so.tar.gz" => "sha256:6aa480115888367b2499fa409bcef9de3126490d72d7e179a04ffa6ae2a7651f",
+  "libbtleplug_client-v0.0.2-alpha-nif-2.15-x86_64-apple-darwin.so.tar.gz" => "sha256:a4a51ce2dac74727590d74288b6bb6ce13b428850d10fa2bc6859d8b0fd8891b",
+  "libbtleplug_client-v0.0.2-alpha-nif-2.15-x86_64-unknown-linux-gnu.so.tar.gz" => "sha256:328d39a52054d0f39e36275939625b0685a589a9a48aa431a6af6a15877fde95",
+  "libbtleplug_client-v0.0.2-alpha-nif-2.15-x86_64-unknown-linux-musl.so.tar.gz" => "sha256:a72f24f4940b2dd4d276cbebce7f245111378aab38e235f654a77b51b17b56e7",
 }

@@ -20,7 +20,7 @@ use crate::RUNTIME;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use tokio::time::{sleep, Duration};
+use tokio::time::{timeout, sleep, Duration};
 
 pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>);
 
@@ -355,9 +355,9 @@ pub fn stop_scan(
 
 #[rustler::nif]
 pub fn find_peripheral(
-    env: Env,
     resource: ResourceArc<CentralRef>,
     uuid: String,
+    timeout_ms: u64,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     info!("Looking for peripheral with UUID: {}", uuid);
 
@@ -368,21 +368,20 @@ pub fn find_peripheral(
     let pid = central_state.pid;
 
     let peripherals = RUNTIME.block_on(async {
-        adapter
-            .peripherals()
+        timeout(Duration::from_millis(timeout_ms), adapter.peripherals())
             .await
+            .map_err(|_| RustlerError::Term(Box::new("Timeout while fetching peripherals")))? // ✅ Timeout error
             .map_err(|e| RustlerError::Term(Box::new(format!("Failed to get peripherals: {}", e))))
     })?;
 
-    // Find the peripheral with matching UUID
     for peripheral in peripherals {
         info!(
-            "Iterating peripheral peripheral.id(): {:?}, uuid: {:?}",
+            "Iterating peripheral id: {:?}, looking for UUID: {:?}",
             peripheral.id(),
             uuid
         );
         if peripheral.id().to_string() == uuid {
-            info!("Found peripheral: {:?}", peripheral.id());
+            info!("✅ Found peripheral: {:?}", peripheral.id());
             let peripheral_state = PeripheralState::new(pid, peripheral);
             return Ok(ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(
                 peripheral_state,
@@ -395,9 +394,9 @@ pub fn find_peripheral(
 
 #[rustler::nif]
 pub fn find_peripheral_by_name(
-    env: Env<'_>,
     resource: ResourceArc<CentralRef>,
     name: String,
+    timeout_ms: u64,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     info!("Looking for peripheral with name: {}", name);
 
@@ -406,19 +405,24 @@ pub fn find_peripheral_by_name(
     let adapter = central_state.adapter.clone();
     let pid = central_state.pid;
 
-    let peripherals = RUNTIME
-        .block_on(adapter.peripherals())
-        .map_err(|e| RustlerError::Term(Box::new(format!("Failed to get peripherals: {}", e))))?;
+    let peripherals = RUNTIME.block_on(async {
+        timeout(Duration::from_millis(timeout_ms), adapter.peripherals())
+            .await
+            .map_err(|_| RustlerError::Term(Box::new("Timeout while fetching peripherals")))? // ✅ Timeout error
+            .map_err(|e| RustlerError::Term(Box::new(format!("Failed to get peripherals: {}", e))))
+    })?;
 
     for peripheral in peripherals {
-        let properties = RUNTIME.block_on(peripheral.properties()).map_err(|e| {
-            RustlerError::Term(Box::new(format!("Failed to get properties: {}", e)))
+        let properties = RUNTIME.block_on(async {
+            timeout(Duration::from_millis(timeout_ms), peripheral.properties())
+                .await
+                .map_err(|_| RustlerError::Term(Box::new("Timeout while fetching properties")))?
+                .map_err(|e| RustlerError::Term(Box::new(format!("Failed to get properties: {}", e))))
         })?;
 
         if let Some(peripheral_name) = properties.unwrap().local_name {
             let search_name = name.trim();
             let peripheral_name_trimmed = peripheral_name.trim();
-
             let contains_match = peripheral_name_trimmed.contains(search_name);
 
             info!(
@@ -428,12 +432,13 @@ pub fn find_peripheral_by_name(
 
             if contains_match {
                 info!("✅ Found peripheral: {:?}", peripheral.id());
-                let peripheral_state = PeripheralState::new(env.pid(), peripheral);
+                let peripheral_state = PeripheralState::new(pid, peripheral);
                 return Ok(ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(
                     peripheral_state,
                 )))));
             }
         }
     }
+
     Err(RustlerError::Term(Box::new("Peripheral not found")))
 }

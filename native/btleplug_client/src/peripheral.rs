@@ -1,3 +1,4 @@
+#![allow(unused_mut)]
 use crate::atoms;
 use crate::RUNTIME;
 use log::{debug, error, info, warn};
@@ -8,25 +9,40 @@ use btleplug::platform::Peripheral;
 use futures::StreamExt;
 use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
 use std::sync::{Arc, Mutex};
+use tokio::time::{timeout, Duration};
 
-/// 🚀 Struct that holds the BLE peripheral state
+/// 🚀 Enum for Peripheral State Management
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PeripheralStateEnum {
+    Disconnected,
+    Connecting,
+    Connected,
+    DiscoveringServices,
+    ServicesDiscovered,
+}
+
+/// 🚀 PeripheralRef: Holds the BLE peripheral state
 pub struct PeripheralRef(pub(crate) Arc<Mutex<PeripheralState>>);
 
-/// 🔧 Struct that manages BLE peripheral state and discovered services
+/// 🔧 Peripheral State Management
 pub struct PeripheralState {
     pub pid: LocalPid,
     pub peripheral: Peripheral,
-    pub services_discovered: bool, // ✅ Track if services were discovered
+    pub state: PeripheralStateEnum,
 }
 
 impl PeripheralState {
-    /// ✅ Constructor: Creates a new PeripheralState instance
     pub fn new(pid: LocalPid, peripheral: Peripheral) -> Self {
         PeripheralState {
             pid,
             peripheral,
-            services_discovered: false,
+            state: PeripheralStateEnum::Disconnected,
         }
+    }
+
+    pub fn set_state(&mut self, new_state: PeripheralStateEnum) {
+        self.state = new_state;
+        debug!("📝 Updated state: {:?}", new_state);
     }
 }
 
@@ -36,80 +52,108 @@ impl Drop for PeripheralState {
     }
 }
 
+/// **🔗 Connect to a Peripheral with Robust Handling**
 #[rustler::nif]
 pub fn connect(
     env: Env,
     resource: ResourceArc<PeripheralRef>,
+    timeout_ms: u64,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
-    let pid = env.pid();
     let peripheral_arc = resource.0.clone();
 
     RUNTIME.spawn(async move {
         let mut msg_env = OwnedEnv::new();
+        let (peripheral, pid, current_state) = {
+            let state_guard = peripheral_arc.lock().unwrap();
+            (
+                state_guard.peripheral.clone(),
+                state_guard.pid,
+                state_guard.state,
+            )
+        };
+
+        if current_state == PeripheralStateEnum::Connected {
+            info!("⚠️ Already connected. Skipping connection.");
+            return;
+        }
+
+        debug!("🔗 Connecting to Peripheral: {:?}", peripheral.id());
+
+        // ✅ Update state before attempting connection
+        {
+            let mut state_guard = peripheral_arc.lock().unwrap();
+            state_guard.set_state(PeripheralStateEnum::Connecting);
+        }
+
+        match timeout(Duration::from_millis(timeout_ms), peripheral.connect()).await {
+            Ok(Ok(_)) => info!("✅ Successfully connected to peripheral: {:?}", peripheral.id()),
+            Ok(Err(e)) => {
+                warn!("❌ Failed to connect: {:?}", e);
+                return;
+            }
+            Err(_) => {
+                warn!("⏳ Timeout while connecting to peripheral!");
+                return;
+            }
+        }
+
+        // ✅ Update state to connected
+        {
+            let mut state_guard = peripheral_arc.lock().unwrap();
+            state_guard.set_state(PeripheralStateEnum::Connected);
+        }
+
+        msg_env.send_and_clear(&pid, |env| {
+            (atoms::btleplug_device_connected(), peripheral.id().to_string()).encode(env)
+        }).ok();
+
+        // ✅ Try discovering services
+        discover_services_internal(&peripheral_arc, timeout_ms).await;
+    });
+
+    Ok(resource)
+}
+
+/// **🔎 Internal Function to Discover Services with Retries**
+async fn discover_services_internal(peripheral_arc: &Arc<Mutex<PeripheralState>>, timeout_ms: u64) {
+    let mut attempt = 0;
+    let mut discovered_services = false;
+
+    while attempt < 3 {
+        debug!("🔍 [Attempt {}] Discovering services...", attempt + 1);
 
         let peripheral = {
             let state_guard = peripheral_arc.lock().unwrap();
             state_guard.peripheral.clone()
         };
 
-        debug!("🔗 Connecting to Peripheral: {:?}", peripheral.id());
+        match timeout(Duration::from_millis(timeout_ms), peripheral.discover_services()).await {
+            Ok(Ok(_)) => {
+                tokio::time::sleep(Duration::from_millis(500)).await;
 
-        if let Err(e) = peripheral.connect().await {
-            warn!("❌ Failed to connect: {:?}", e);
-            return;
-        }
+                let services = {
+                    let state_guard = peripheral_arc.lock().unwrap();
+                    state_guard.peripheral.services()
+                };
 
-        info!(
-            "✅ Successfully connected to peripheral: {:?}",
-            peripheral.id()
-        );
-
-        msg_env
-            .send_and_clear(&pid, |env| {
-                (
-                    atoms::btleplug_device_connected(),
-                    peripheral.id().to_string(),
-                )
-                    .encode(env)
-            })
-            .ok();
-
-        tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-        
-        let before_services = peripheral.services();
-        debug!("🔍 [Before] Found {} services.", before_services.len());
-
-        match peripheral.discover_services().await {
-            Ok(_) => {
-                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-
-                let after_services = peripheral.services();
-                debug!("🔍 [After] Found {} services.", after_services.len());
-
-                if !after_services.is_empty() {
-                    let mut state_guard = peripheral_arc.lock().unwrap();
-                    state_guard.services_discovered = true;
-                    debug!("📝 Updated state: services_discovered = true");
-                } else {
-                    warn!("⚠️ Services not found even after discovery.");
+                if !services.is_empty() {
+                    discovered_services = true;
+                    break;
                 }
             }
-            Err(e) => {
-                warn!("⚠️ Failed to discover services: {:?}", e);
-                msg_env
-                    .send_and_clear(&pid, |env| {
-                        (
-                            atoms::btleplug_device_service_discovery_error(),
-                            peripheral.id().to_string(),
-                        )
-                            .encode(env)
-                    })
-                    .ok();
-            }
+            _ => warn!("⚠️ Service discovery failed or timed out."),
         }
-    });
 
-    Ok(resource)
+        tokio::time::sleep(Duration::from_millis(500)).await;
+        attempt += 1;
+    }
+
+    if discovered_services {
+        let mut state_guard = peripheral_arc.lock().unwrap();
+        state_guard.set_state(PeripheralStateEnum::ServicesDiscovered);
+    } else {
+        warn!("⚠️ Services not found even after retries.");
+    }
 }
 
 #[rustler::nif]
@@ -117,29 +161,28 @@ pub fn subscribe(
     env: Env,
     resource: ResourceArc<PeripheralRef>,
     characteristic_uuid: String,
+    timeout_ms: u64,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
-    let pid = env.pid();
     let peripheral_arc = resource.0.clone();
 
     RUNTIME.spawn(async move {
-        let msg_env = OwnedEnv::new();
+        let mut msg_env = OwnedEnv::new();
 
-        let (peripheral, services_discovered) = {
+        let (peripheral, services_discovered, pid) = {
             let state_guard = peripheral_arc.lock().unwrap();
             (
                 state_guard.peripheral.clone(),
                 state_guard.services_discovered,
+                state_guard.pid,
             )
         };
 
         if !services_discovered {
             warn!("⚠️ Services not discovered yet! Calling discover_services()...");
-            match peripheral.discover_services().await {
-                Ok(_) => {
-                    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            match timeout(Duration::from_millis(timeout_ms), peripheral.discover_services()).await {
+                Ok(Ok(_)) => {
                     let services = peripheral.services();
                     debug!("🔍 [After] Found {} services.", services.len());
-
                     if !services.is_empty() {
                         let mut state_guard = peripheral_arc.lock().unwrap();
                         state_guard.services_discovered = true;
@@ -147,31 +190,19 @@ pub fn subscribe(
                         warn!("⚠️ Services not found even after discovery.");
                     }
                 }
-                Err(e) => warn!("❌ `discover_services()` failed: {:?}", e),
+                Ok(Err(e)) => {
+                    warn!("❌ `discover_services()` failed: {:?}", e);
+                    return;
+                }
+                Err(_) => {
+                    warn!("⏳ Timeout while discovering services!");
+                    return;
+                }
             }
         }
-
-        let services = peripheral.services();
-        info!("🔎 Found {} services.", services.len());
 
         let characteristics = peripheral.characteristics();
         info!("🔎 Found {} characteristics.", characteristics.len());
-
-        for service in &services {
-            debug!("📌 Service UUID: {:?}", service.uuid);
-        }
-
-        for characteristic in &characteristics {
-            info!("🧬 Characteristic:");
-            info!("   🆔 UUID: {:?}", characteristic.uuid);
-            info!("   🔹 Properties: {:?}", characteristic.properties);
-
-            if !characteristic.descriptors.is_empty() {
-                info!("   📜 Descriptors: {:?}", characteristic.descriptors);
-            } else {
-                info!("   🚫 No Descriptors");
-            }
-        }
 
         let characteristic = characteristics
             .iter()
@@ -187,40 +218,58 @@ pub fn subscribe(
                     return;
                 }
 
-                if let Err(e) = peripheral.subscribe(&char).await {
-                    warn!("❌ Failed to subscribe: {:?}", e);
-                    return;
+                match timeout(Duration::from_millis(timeout_ms), peripheral.subscribe(&char)).await {
+                    Ok(Ok(_)) => info!("✅ Subscribed to characteristic: {:?}", char.uuid),
+                    Ok(Err(e)) => {
+                        warn!("❌ Failed to subscribe: {:?}", e);
+                        return;
+                    }
+                    Err(_) => {
+                        warn!("⏳ Timeout while subscribing to characteristic!");
+                        return;
+                    }
                 }
 
-                // ✅ **Persist the notifications task**
+                // ✅ **Ensure Notifications Are Received**
                 let peripheral_clone = peripheral.clone();
                 let pid_clone = pid.clone();
-
                 tokio::spawn(async move {
                     let mut msg_env = OwnedEnv::new();
 
-                    match peripheral_clone.notifications().await {
-                        Ok(mut notifications) => {
+                    match timeout(Duration::from_millis(timeout_ms), peripheral_clone.notifications()).await {
+                        Ok(Ok(mut notifications)) => {
                             info!("📡 Listening for characteristic updates...");
+                            let mut received_any = false;
 
                             while let Some(notification) = notifications.next().await {
+                                received_any = true;
                                 debug!(
                                     "📩 Received Notification: {:?} (from {:?})",
                                     notification.value, notification.uuid
                                 );
 
-                                // ✅ **Send data to Elixir**
-                                msg_env.send_and_clear(&pid_clone, |env| {
+                                let send_result = msg_env.send_and_clear(&pid_clone, |env| {
                                     (
                                         atoms::btleplug_characteristic_value_changed(),
                                         notification.uuid.to_string(),
                                         notification.value.clone(),
                                     )
                                         .encode(env)
-                                }).ok();
+                                });
+
+                                if let Err(e) = send_result {
+                                    error!("🚨 Failed to send notification to Elixir: {:?}", e);
+                                } else {
+                                    debug!("✅ Notification sent to Elixir successfully.");
+                                }
+                            }
+
+                            if !received_any {
+                                warn!("⚠️ No notifications received for characteristic {:?}. Possible issue with device!", char.uuid);
                             }
                         }
-                        Err(e) => warn!("⚠️ Failed to get notifications: {:?}", e),
+                        Ok(Err(e)) => warn!("⚠️ Failed to get notifications: {:?}", e),
+                        Err(_) => warn!("⏳ Timeout while waiting for notifications!"),
                     }
                 });
             }

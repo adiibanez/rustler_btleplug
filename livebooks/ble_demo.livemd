@@ -14,6 +14,7 @@ Mix.install([
 ```elixir
 ExUnit.configure(exclude: [:skip])
 ExUnit.start(autorun: false)
+pid = self()
 ```
 
 <!-- livebook:{"reevaluate_automatically":true} -->
@@ -29,7 +30,7 @@ defmodule RustlerBtleplug.Demo2 do
 
   test "Central setup" do
     central_resource =
-      Native.create_central()
+      Native.create_central(self())
       |> Native.start_scan()
 
     assert is_reference(central_resource)
@@ -82,15 +83,16 @@ defmodule RustlerBtleplug.Demo2 do
     assert_receive {:btleplug_characteristic_value_changed, _uuid, _value},
                    @timeout,
                    "No :btleplug_characteristic_value_changed received"
-
     messages = :erlang.process_info(self(), :messages)
-    IO.inspect(messages, label: "messages")
+    IO.puts(inspect(messages), label: "messages")
   end
 
   # def handle_info(msg) do
   #  IO.puts(inspect(msg))
   # end
 end
+
+pid = self()
 ```
 
 <!-- livebook:{"reevaluate_automatically":true} -->

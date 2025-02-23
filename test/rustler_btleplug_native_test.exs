@@ -22,10 +22,10 @@ defmodule RustlerBtleplug.NativeTest do
       Native.create_central()
       |> Native.start_scan()
 
+    Process.sleep(1000)
+
     assert_receive {:btleplug_scan_started, _msg}
     assert_receive {:btleplug_device_discovered, _msg}
-
-    Process.sleep(1000)
 
     assert_receive {:btleplug_scan_stopped, _msg}
 
@@ -157,6 +157,9 @@ defmodule RustlerBtleplug.NativeTest do
         #assert_receive {:btleplug_service_data_advertisement, _msg}, timeout, "No :btleplug_service_data_advertisement received"
         #assert_receive {:btleplug_device_connected, _msg}, timeout, "No :btleplug_device_connected received"
         assert_receive {:btleplug_characteristic_value_changed, _uuid, _value}, timeout, "No :btleplug_characteristic_value_changed received"
+
+
+        Process.sleep(1000)
 
         # peripheral_subscribed =
         #   peripheral_resource

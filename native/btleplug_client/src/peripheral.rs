@@ -3,7 +3,6 @@
 use crate::atoms;
 use crate::RUNTIME;
 use log::{debug, error, info, warn};
-use pretty_env_logger;
 
 use btleplug::api::{CharPropFlags, Characteristic, Peripheral as ApiPeripheral, Service};
 use btleplug::platform::Peripheral;
@@ -66,15 +65,14 @@ pub async fn discover_services_internal(
             state_guard.peripheral.clone()
         };
 
-        let success = match timeout(
-            Duration::from_millis(timeout_ms),
-            peripheral_clone.discover_services(),
-        )
-        .await
-        {
-            Ok(Ok(_)) => true,
-            _ => false,
-        };
+        let success = matches!(
+            timeout(
+                Duration::from_millis(timeout_ms),
+                peripheral_clone.discover_services(),
+            )
+            .await,
+            Ok(Ok(_))
+        );
 
         if success {
             tokio::time::sleep(Duration::from_millis(250)).await;
@@ -116,7 +114,7 @@ pub fn connect(
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     let peripheral_arc = resource.0.clone();
 
-    let env_pid = env.pid().clone();
+    let env_pid = env.pid();
 
     RUNTIME.spawn(async move {
         let (peripheral, pid) = {
@@ -169,7 +167,7 @@ pub fn disconnect(
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     let peripheral_arc = resource.0.clone();
 
-    let env_pid = env.pid().clone();
+    let env_pid = env.pid();
 
     RUNTIME.spawn(async move {
         let (peripheral, pid) = {
@@ -217,7 +215,7 @@ pub fn subscribe(
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     let peripheral_arc = resource.0.clone();
 
-    let env_pid = env.pid().clone();
+    let env_pid = env.pid();
 
     RUNTIME.spawn(async move {
         let (peripheral, state, pid) = {
@@ -333,7 +331,7 @@ pub fn unsubscribe(
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
     let peripheral_arc = resource.0.clone();
 
-    let env_pid = env.pid().clone();
+    let env_pid = env.pid();
 
     RUNTIME.spawn(async move {
         let (peripheral, state, pid) = {
@@ -388,7 +386,6 @@ pub fn unsubscribe(
                     Ok(Ok(_)) => info!("✅ Unsubscribed from characteristic: {:?}", char.uuid),
                     _ => {
                         warn!("❌ Failed to unsubscribe from {:?}", char.uuid);
-                        return;
                     }
                 }
             }

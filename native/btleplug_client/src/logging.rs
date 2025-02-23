@@ -7,7 +7,7 @@ use std::io::{self, Write};
 
 pub fn init_log() {
     match get_log_mode() {
-        LogMode::CLI => {
+        LogMode::Cli => {
             info!("Initializing in CLI mode (interactive terminal)");
             init_log_cli();
         }
@@ -26,13 +26,13 @@ fn get_log_mode() -> LogMode {
         .as_str()
     {
         "phoenix" => LogMode::Phoenix,
-        _ => LogMode::CLI, // Default to CLI if not set or if set to something other than "phoenix"
+        _ => LogMode::Cli, // Default to CLI if not set or if set to something other than "phoenix"
     }
 }
 
 #[derive(Debug)]
 enum LogMode {
-    CLI,
+    Cli,
     Phoenix,
 }
 

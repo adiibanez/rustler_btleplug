@@ -2,7 +2,6 @@ use crate::atoms;
 use crate::peripheral::PeripheralRef;
 use crate::peripheral::PeripheralState;
 use log::{debug, error, info, warn};
-use pretty_env_logger;
 use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
 
 use btleplug::api::{
@@ -268,7 +267,7 @@ pub fn start_scan(
     let resource_arc = resource.0.clone();
     let resource_arc_stop = resource_arc.clone();
 
-    let env_pid = env.pid().clone();
+    let env_pid = env.pid();
 
     RUNTIME.spawn(async move {
         let mut msg_env = OwnedEnv::new();
@@ -370,7 +369,7 @@ pub fn find_peripheral(
     let adapter = central_state.adapter.clone();
     let pid = central_state.pid;
 
-    let env_pid = env.pid().clone();
+    let env_pid = env.pid();
 
     info!(
         "Looking for peripheral with UUID: {}, caller pid: {:?}, state pid: {:?}",

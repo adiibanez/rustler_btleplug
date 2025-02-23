@@ -11,7 +11,7 @@ Mix.install([
 ## Section
 
 ```elixir
-defmodule RustlerBtleplug.Genserver do
+defmodule RustlerBtleplug.GenserverLiveBook do
   @name :ble_genserver
 
   use GenServer
@@ -81,9 +81,9 @@ defmodule RustlerBtleplug.Genserver do
     GenServer.call(@name, {:create_central})
   end
 
-  def start_scan(timeout \\ 1000) do
+  def start_scan() do
     Logger.debug("client :start_scan")
-    GenServer.cast(@name, {:start_scan, timeout})
+    GenServer.cast(@name, {:start_scan})
   end
 
   def stop_scan() do
@@ -119,7 +119,7 @@ defmodule RustlerBtleplug.Genserver do
     {:noreply, new_state}
   end
 
-  def handle_cast({:start_scan, timeout}, state) do
+  def handle_cast({:start_scan}, state) do
     Logger.debug("handle_cast :start_scan #{inspect(state)}")
 
     case state.central do
@@ -129,7 +129,7 @@ defmodule RustlerBtleplug.Genserver do
 
       central_ref ->
         # Call NIF to stop the scan using the central reference
-        case RustlerBtleplug.Native.start_scan(central_ref, timeout) do
+        case RustlerBtleplug.Native.start_scan(central_ref) do
           {:error, reason} ->
             Logger.debug("Failed to start scan: #{reason}")
             {:noreply, state}
@@ -262,7 +262,7 @@ defmodule ParentSupervisor do
     IO.puts("Starting Supervisor: #{inspect(__MODULE__)}")
 
     children = [
-      RustlerBtleplug.Genserver
+      RustlerBtleplug.GenserverLiveBook
     ]
 
     Supervisor.init(children, strategy: :one_for_one)
@@ -281,16 +281,16 @@ sup_pid = ParentSupervisor.start_link([])
 Kino.Process.sup_tree(ParentSupervisor)
 
 Kino.Process.render_seq_trace(self(), fn ->
-  {:ok, central_ref} = RustlerBtleplug.Genserver.create_central()
+  {:ok, central_ref} = RustlerBtleplug.GenserverLiveBook.create_central()
 
   IO.puts("Is central_ref a reference: #{inspect(is_reference(central_ref))}")
-  RustlerBtleplug.Genserver.start_scan(10000)
+  RustlerBtleplug.GenserverLiveBook.start_scan()
   Process.sleep(500)
-  RustlerBtleplug.Genserver.find_peripheral_by_name(ble_device_name)
+  RustlerBtleplug.GenserverLiveBook.find_peripheral_by_name(ble_device_name)
   Process.sleep(500)
-  RustlerBtleplug.Genserver.connect()
+  RustlerBtleplug.GenserverLiveBook.connect()
   Process.sleep(500)
-  RustlerBtleplug.Genserver.subscribe()
+  RustlerBtleplug.GenserverLiveBook.subscribe()
 end)
 
 # Kino.Process.app_tree(:logger)

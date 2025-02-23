@@ -48,9 +48,9 @@ end
 ### Connect to a Device
 
 Some Standard characteristic UUIDs
-heartrate: 00002a37-0000-1000-8000-00805f9b34fb
-batteryLevel: 00002a19-0000-1000-8000-00805f9b34fb
-deviceName: 00002a00-0000-1000-8000-00805f9b34fb
+- heartrate: 00002a37-0000-1000-8000-00805f9b34fb
+- batteryLevel: 00002a19-0000-1000-8000-00805f9b34fb
+- deviceName: 00002a00-0000-1000-8000-00805f9b34fb
 
 ```elixir
 # Find and connect to a specific peripheral

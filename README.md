@@ -21,11 +21,16 @@ Add `rustler_btleplug` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:rustler_btleplug, "~> 0.0.4-alpha"},
+    {:rustler_btleplug, "~> 0.0.6-alpha"},
     {:rustler, ">= 0.31.0", optional: true} # rustler_precompiled dependency
   ]
 end
 ```
+
+```livebook
+Mix.install([
+  {:rustler_btleplug, "~> 0.0.6-alpha"}
+])```
 
 ## Usage Examples
 
@@ -48,9 +53,9 @@ end
 ### Connect to a Device
 
 Some Standard characteristic UUIDs
-heartrate: 00002a37-0000-1000-8000-00805f9b34fb
-batteryLevel: 00002a19-0000-1000-8000-00805f9b34fb
-deviceName: 00002a00-0000-1000-8000-00805f9b34fb
+- heartrate: 00002a37-0000-1000-8000-00805f9b34fb
+- batteryLevel: 00002a19-0000-1000-8000-00805f9b34fb
+- deviceName: 00002a00-0000-1000-8000-00805f9b34fb
 
 ```elixir
 # Find and connect to a specific peripheral
@@ -75,14 +80,6 @@ RustlerBtleplug.Genserver.start_scan()
 
 # see livebook for more examples
 ```
-
-## Livebook
-Check out our LiveBook demo to try the library interactively:
-
-
-
-
-[![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https://github.com/adiibanez/rustler_btleplug/blob/main/livebooks/ble_demo.livemd)
 
 ## Running Tests
 

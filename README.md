@@ -120,10 +120,12 @@ Feedback on platform support of these precompiled NIFs and PRs are more than wel
 
 Compilation on host can be forced via env variable: 
 
+```
 export RUSTLER_BTLEPLUG_BUILD=true
 export RUSTLER_BTLEPLUG_BUILD=1
 
 RUSTLER_BTLEPLUG_BUILD=1 mix test
+```
 
 ```
 { target: arm-unknown-linux-gnueabihf, os: ubuntu-20.04, use-cross: true }

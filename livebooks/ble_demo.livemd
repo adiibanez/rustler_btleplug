@@ -1,9 +1,10 @@
-# Untitled notebook
+# Rustler BLE playground
 
 ```elixir
 Mix.install([
-  {:kino, "~> 0.12.0"},
-  {:rustler_btleplug, "~> 0.0.0"}
+  # {:kino, "~> 0.12.0"},
+  {:kino, github: "livebook-dev/kino"},
+  {:rustler_btleplug, "~> 0.0.4-alpha"}
 ])
 ```
 
@@ -21,29 +22,48 @@ defmodule RustlerBtleplug.Demo do
         characteristic_uuid \\ "61d20a90-71a1-11ea-ab12-0800200c9a66"
       ) do
     central = Native.create_central()
-    central = Native.start_scan(central)
-    peripheral = Native.find_peripheral_by_name(central, device_name)
+    central = Native.start_scan(central, 5000)
+    # Process.sleep(500)
+    # peripheral = Native.find_peripheral_by_name(central, device_name)
     # peripheral = Native.find_peripheral(central, "uuid")
+    Process.sleep(500)
 
-    Process.sleep(1000)
-
-    peripheral = Native.connect(peripheral)
-    _peripheral = Native.subscribe(peripheral, characteristic_uuid)
+    # peripheral = Native.connect(peripheral)
+    # _peripheral = Native.subscribe(peripheral, characteristic_uuid)
 
     Process.sleep(1000)
 
     # peripheral = Native.disconnect(peripheral)
     # Native.unsubscribe(peripheral, "61d20a90-71a1-11ea-ab12-0800200c9a66")
   end
-
-  # def handle_info(msg) do
-  #  IO.puts(inspect(msg))
-  # end
 end
 ```
 
 <!-- livebook:{"reevaluate_automatically":true} -->
 
 ```elixir
-RustlerBtleplug.Demo.start()
+pid = self()
+
+device_name = "Pressure"
+characteristic_uuid = "61d20a90-71a1-11ea-ab12-0800200c9a66"
+
+Process.monitor(pid)
+
+Kino.Process.render_seq_trace(pid, fn ->
+  _central =
+    Native.create_central()
+    |> Native.start_scan(5000)
+
+  # |> Native.find_peripheral_by_name(device_name)
+
+  Enum.reduce(
+    receive do
+      msg -> %{msg: " BLE: #{inspect(msg)}"}
+    end,
+    %{}
+  )
+end)
+
+# Kino.Process.app_tree(:logger)
+# RustlerBtleplug.Demo.start()
 ```

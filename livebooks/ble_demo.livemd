@@ -288,7 +288,9 @@ Kino.Process.render_seq_trace(self(), fn ->
 
   IO.puts("Is central_ref a reference: #{inspect(is_reference(central_ref))}")
   RustlerBtleplug.GenserverLiveBook.start_scan(default_timeout)
-  RustlerBtleplug.GenserverLiveBook.find_peripheral_by_name(ble_device_name, default_timeout)
+  RustlerBtleplug.GenserverLiveBook.find_peripheral_by_name(ble_device_name, 10000)
+
+  Process.sleep(10000)
   RustlerBtleplug.GenserverLiveBook.connect(default_timeout)
   RustlerBtleplug.GenserverLiveBook.subscribe(ble_characteristic_uuid, default_timeout)
 end)

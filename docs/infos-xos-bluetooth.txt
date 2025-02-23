@@ -3,5 +3,4 @@ sudo pkill bluetoothd
 sudo defaults read /Library/Preferences/com.apple.Bluetooth.plist
 tccutil reset Bluetooth
 
-
 system_profiler SPBluetoothDataType

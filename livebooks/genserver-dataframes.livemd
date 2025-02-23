@@ -1,0 +1,290 @@
+<!-- livebook:{"app_settings":{"access_type":"public","output_type":"rich","slug":"frames","zero_downtime":true}} -->
+
+# Efficient Group Updates with Nested Kino Frames
+
+```elixir
+Mix.install([
+  {:kino, "~> 0.14.2"},
+  {:kino_user_presence, "~> 0.1.2"}
+])
+```
+
+## Fun with Frames
+
+[![Run in Livebook](https://livebook.dev/badge/v1/blue.svg)](https://livebook.dev/run?url=https%3A%2F%2Fgist.github.com%2Felepedus%2Ff76b7855889ce88a0ac3fd286cc1cfe6)
+
+This project demonstrates how to efficiently manage real-time, subgroup-specific updates using nested Kino frames and targeted rendering. The approach minimizes overhead by updating shared group components rather than iterating over every connected client. This README explains the core concepts, walks through the code, and shows you how to use the example in your own projects.
+
+### Overview
+
+In many real-time applications, you might want to update parts of the user interface (UI) for groups of clients without sending individual updates to each client. This example leverages the following ideas:
+
+* **Nested Frames for Grouping**:
+  An outer frame serves as a container, and inner frames represent different client groups (e.g., Group A and Group B).
+
+* **Targeted Rendering on Join**:
+  When a client joins, the system renders the outer frame to that client and then mounts the appropriate inner frame for their assigned group.
+
+* **Shared Updates Without Individual Targeting**:
+  Once connected, any updates to an inner frame are automatically reflected in the views of all clients in that group. There’s no need to push updates one-by-one.
+
+* **Efficient State Management**:
+  By updating just the inner frames, the design minimizes the work needed to keep clients in sync.
+
+#### How It Works
+
+1. Initialize Nested Frames:
+
+   * An outer frame is created as the main container.
+   * Two inner frames (`inner_a` and `inner_b`) are created for two client groups.
+
+2. Client Joins:
+
+   * When a client joins, they are randomly assigned to Group A or Group B.
+   * The system renders the outer frame to that client and mounts the corresponding inner frame.
+
+3. Group Updates:
+
+   * Updates to an inner frame (e.g., new members joining or leaving a group) are rendered once.
+   * These updates automatically propagate to every client that is viewing that inner frame.
+
+4. Client Leaves:
+
+   * When a client leaves, they are removed from their group, and the updated list is rendered to the remaining clients.
+
+### Code Walkthrough
+
+The core logic is implemented in the FunWithFrames module. Below is a breakdown of the key sections:
+
+1. **State Structure**
+
+The GenServer maintains a state with two main parts:
+
+```
+-   Frames: Holds the outer frame and two inner frames.
+-   Clients: Tracks which clients are in Group A (:a) and Group B (:b).
+```
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+defstruct frames: %{}, clients: %{a: [], b: []}
+```
+
+1. **Initialization**
+
+When the GenServer starts, it creates the frames and immediately mounts the outer frame:
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+def handle_continue(_, state) do
+  {:noreply,
+   state
+   |> Map.update!(:frames, fn frames ->
+     frames
+     |> Map.put_new(:outer, Kino.Frame.new())
+     |> Map.put_new(:inner_a, Kino.Frame.new(placeholder: false))
+     |> Map.put_new(:inner_b, Kino.Frame.new(placeholder: false))
+   end)
+   |> mount_outer_frame()}
+end
+
+def mount_outer_frame(state) do
+  state.frames.outer |> Kino.render()
+  state
+end
+```
+
+1. **Handling Client Joins**
+
+When a client joins:
+
+```
+-   They are randomly assigned to either Group A or Group B.
+-   The inner frame corresponding to their group is rendered specifically for that client.
+-   The current state of both groups is updated and re-rendered.
+```
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+def handle_cast({:join, origin}, state) do
+  group = [:a, :b] |> Enum.random()
+
+  {:noreply,
+   state
+   |> Map.update!(:clients, fn clients ->
+     clients |> Map.update!(group, fn list -> [origin | list] end)
+   end)
+   |> mount_inner_frame(group, origin)
+   |> render_all()}
+end
+```
+
+1. Mounting Inner Frames
+
+Depending on the assigned group, the appropriate inner frame is mounted into the outer frame for that specific client:
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+def mount_inner_frame(state, :a, origin) do
+  Kino.Frame.render(
+    state.frames.outer,
+    Kino.Layout.grid([state.frames.inner_a]),
+    to: origin
+  )
+  state
+end
+
+def mount_inner_frame(state, :b, origin) do
+  Kino.Frame.render(
+    state.frames.outer,
+    Kino.Layout.grid([state.frames.inner_b]),
+    to: origin
+  )
+  state
+end
+```
+
+1. Updating the Group Displays
+
+The `render_all/1` function updates both inner frames with the current state of the groups:
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+def render_all(state) do
+  Kino.Frame.render(state.frames.inner_a, Kino.Layout.grid(["The A's", state.clients.a]))
+  Kino.Frame.render(state.frames.inner_b, Kino.Layout.grid(["The B's", state.clients.b]))
+  state
+end
+```
+
+1. Handling Client Leaves
+
+When a client leaves, they are removed from their group(s), and the updated state is rendered:
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+def handle_cast({:leave, origin}, state) do
+  {:noreply,
+   state
+   |> Map.update!(:clients, fn clients ->
+     clients
+     |> Map.update!(:a, fn list -> Enum.reject(list, &(&1 == origin)) end)
+     |> Map.update!(:b, fn list -> Enum.reject(list, &(&1 == origin)) end)
+   end)
+   |> render_all()}
+end
+```
+
+1. Starting the System
+
+Finally, the GenServer is started, and the system listens for client join/leave events via KinoUserPresence:
+
+<!-- livebook:{"force_markdown":true} -->
+
+```elixir
+Kino.start_child!(FunWithFrames)
+KinoUserPresence.listen(&FunWithFrames.join/1, &FunWithFrames.leave/1)
+```
+
+Conclusion
+
+This example illustrates how to use nested Kino frames and targeted rendering to efficiently manage group updates in real time. By structuring your UI into nested components, you can broadcast updates to entire groups with minimal overhead. This pattern is particularly useful in applications where real-time state sharing is critical.
+
+```elixir
+defmodule FunWithFrames do
+  use GenServer
+  defstruct frames: %{}, clients: %{a: [], b: []}
+  alias __MODULE__, as: State
+  def start_link(_), do: GenServer.start_link(__MODULE__, %State{}, name: __MODULE__)
+  def init(state), do: {:ok, state, {:continue, :setup}}
+
+  def handle_continue(_, state) do
+    {:noreply,
+     state
+     |> Map.update!(:frames, fn
+       frames ->
+         frames
+         |> Map.put_new(:outer, Kino.Frame.new())
+         |> Map.put_new(:inner_a, Kino.Frame.new(placeholder: false))
+         |> Map.put_new(:inner_b, Kino.Frame.new(placeholder: false))
+     end)
+     |> mount_outer_frame()}
+  end
+
+  def mount_outer_frame(state) do
+    state.frames.outer |> Kino.render()
+
+    state
+  end
+
+  def join(p), do: GenServer.cast(__MODULE__, {:join, p})
+  def leave(p), do: GenServer.cast(__MODULE__, {:leave, p})
+
+  def handle_cast({:join, origin}, state) do
+    group =
+      [:a, :b]
+      |> Enum.random()
+
+    {:noreply,
+     state
+     |> Map.update!(:clients, fn clients ->
+       clients
+       |> Map.update!(group, fn
+         list -> [origin | list]
+       end)
+     end)
+     |> mount_inner_frame(group, origin)
+     |> render_all()}
+  end
+
+  def handle_cast({:leave, origin}, state) do
+    {:noreply,
+     state
+     |> Map.update!(:clients, fn clients ->
+       clients
+       |> Map.update!(:a, fn
+         list -> Enum.reject(list, &(&1 == origin))
+       end)
+       |> Map.update!(:b, fn
+         list -> Enum.reject(list, &(&1 == origin))
+       end)
+     end)
+     |> render_all()}
+  end
+
+  def mount_inner_frame(state, :a, origin) do
+    Kino.Frame.render(
+      state.frames.outer,
+      Kino.Layout.grid([state.frames.inner_a]),
+      to: origin
+    )
+
+    state
+  end
+
+  def mount_inner_frame(state, :b, origin) do
+    Kino.Frame.render(
+      state.frames.outer,
+      Kino.Layout.grid([state.frames.inner_b]),
+      to: origin
+    )
+
+    state
+  end
+
+  def render_all(state) do
+    Kino.Frame.render(state.frames.inner_a, Kino.Layout.grid(["The A's", state.clients.a]))
+    Kino.Frame.render(state.frames.inner_b, Kino.Layout.grid(["The B's", state.clients.b]))
+    state
+  end
+end
+
+Kino.start_child!(FunWithFrames)
+KinoUserPresence.listen(&FunWithFrames.join/1, &FunWithFrames.leave/1)
+```

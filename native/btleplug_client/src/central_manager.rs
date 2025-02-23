@@ -1,17 +1,15 @@
 use crate::atoms;
 use crate::peripheral::PeripheralRef;
 use crate::peripheral::PeripheralState;
-use log::{debug, error, info, warn};
-use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
+use log::{debug, info, warn};
+use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc};
 
 use btleplug::api::{
-    bleuuid::BleUuid, Central, CentralEvent, CharPropFlags, Characteristic, Manager as _,
-    Peripheral, ScanFilter, Service, ValueNotification,
+    Central, CentralEvent, Manager as _,
+    Peripheral, ScanFilter,
 };
 use btleplug::platform::{Adapter, Manager};
 use futures::StreamExt;
-use tokio::spawn;
-use uuid::Uuid;
 
 use std::collections::HashMap;
 

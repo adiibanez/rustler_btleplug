@@ -37,8 +37,7 @@ extern crate rustler;
 extern crate rustler_codegen;
 
 use central_manager::*;
-use gatt_peripheral::*;
-use log::{debug, error, info, warn};
+use log::{debug, info};
 use once_cell::sync::Lazy;
 use peripheral::*;
 use rustler::{Env, Error as RustlerError, Term};

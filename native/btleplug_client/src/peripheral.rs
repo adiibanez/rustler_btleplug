@@ -2,12 +2,12 @@
 
 use crate::atoms;
 use crate::RUNTIME;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 
-use btleplug::api::{CharPropFlags, Characteristic, Peripheral as ApiPeripheral, Service};
+use btleplug::api::{CharPropFlags, Peripheral as ApiPeripheral};
 use btleplug::platform::Peripheral;
 use futures::StreamExt;
-use rustler::{Atom, Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
+use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc};
 use std::sync::{Arc, Mutex};
 use tokio::time::{timeout, Duration};
 

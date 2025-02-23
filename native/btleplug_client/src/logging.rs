@@ -1,9 +1,8 @@
-use atty::Stream;
 use env_logger::{Builder, Target};
-use log::{debug, error, info, warn, LevelFilter};
+use log::{info, LevelFilter};
 use pretty_env_logger::env_logger;
 use std::env;
-use std::io::{self, Write};
+use std::io::{Write};
 
 pub fn init_log() {
     match get_log_mode() {

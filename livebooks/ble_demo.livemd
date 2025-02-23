@@ -12,93 +12,38 @@ Mix.install([
 <!-- livebook:{"reevaluate_automatically":true} -->
 
 ```elixir
-ExUnit.configure(exclude: [:skip])
-ExUnit.start(autorun: false)
-pid = self()
-```
-
-<!-- livebook:{"reevaluate_automatically":true} -->
-
-```elixir
 require Logger
 alias RustlerBtleplug.Native
 
-defmodule RustlerBtleplug.Demo2 do
-  use ExUnit.Case, async: false
-
-  @timeout 1000
-
-  test "Central setup" do
-    central_resource =
-      Native.create_central(self())
-      |> Native.start_scan()
-
-    assert is_reference(central_resource)
-
-    assert_receive {:btleplug_device_updated, _msg},
-                   @timeout,
-                   "No :btleplug_device_updated received"
-
-    assert_receive {:btleplug_device_connected, _msg},
-                   @timeout,
-                   "No :btleplug_device_connected received"
-
-    # assert_receive {:btleplug_services_advertisement, _msg}, @timeout, "No :btleplug_services_advertisement received"
-    # assert_receive {:btleplug_service_data_advertisement, _msg}, @timeout, "No :btleplug_service_data_advertisement received"
-    # assert_receive {:btleplug_device_connected, _msg}, @timeout, "No :btleplug_device_connected received"
-    assert_receive {:btleplug_characteristic_value_changed, _uuid, _value},
-                   @timeout,
-                   "No :btleplug_characteristic_value_changed received"
-
-    Process.sleep(20000)
-
-    messages = :erlang.process_info(self(), :messages)
-    IO.inspect(messages, label: "messages")
-  end
-
-  #@tag :skip
-  test "Connect to known device" do
-    peripheral_resource =
-      Native.create_central()
-      |> Native.start_scan()
-      |> Native.find_peripheral_by_name("Pressure")
-      |> Native.connect()
-      |> Native.subscribe("61d20a90-71a1-11ea-ab12-0800200c9a66")
-
-    assert is_reference(peripheral_resource)
+defmodule RustlerBtleplug.Demo do
+  def start(
+        device_name \\ "Pressure",
+        characteristic_uuid \\ "61d20a90-71a1-11ea-ab12-0800200c9a66"
+      ) do
+    central = Native.create_central()
+    central = Native.start_scan(central)
+    peripheral = Native.find_peripheral_by_name(central, device_name)
+    # peripheral = Native.find_peripheral(central, "uuid")
 
     Process.sleep(1000)
 
-    assert_receive {:btleplug_device_updated, _msg},
-                   @timeout,
-                   "No :btleplug_device_updated received"
+    peripheral = Native.connect(peripheral)
+    _peripheral = Native.subscribe(peripheral, characteristic_uuid)
 
-    assert_receive {:btleplug_device_connected, _msg},
-                   @timeout,
-                   "No :btleplug_device_connected received"
+    Process.sleep(1000)
 
-    # assert_receive {:btleplug_services_advertisement, _msg}, @timeout, "No :btleplug_services_advertisement received"
-    # assert_receive {:btleplug_service_data_advertisement, _msg}, @timeout, "No :btleplug_service_data_advertisement received"
-    # assert_receive {:btleplug_device_connected, _msg}, @timeout, "No :btleplug_device_connected received"
-    assert_receive {:btleplug_characteristic_value_changed, _uuid, _value},
-                   @timeout,
-                   "No :btleplug_characteristic_value_changed received"
-    messages = :erlang.process_info(self(), :messages)
-    IO.puts(inspect(messages), label: "messages")
+    # peripheral = Native.disconnect(peripheral)
+    # Native.unsubscribe(peripheral, "61d20a90-71a1-11ea-ab12-0800200c9a66")
   end
 
   # def handle_info(msg) do
   #  IO.puts(inspect(msg))
   # end
 end
-
-pid = self()
 ```
 
 <!-- livebook:{"reevaluate_automatically":true} -->
 
 ```elixir
-ExUnit.run()
-
-IO.puts(inspect(self()))
+RustlerBtleplug.Demo.start()
 ```

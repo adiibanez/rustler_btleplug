@@ -17,6 +17,7 @@ pub struct PeripheralRef(pub(crate) Arc<Mutex<PeripheralState>>);
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PeripheralStateEnum {
     Disconnected,
+    Disconnecting,
     Connecting,
     Connected,
     DiscoveringServices,
@@ -147,6 +148,56 @@ pub fn connect(
     Ok(resource)
 }
 
+
+
+#[rustler::nif]
+pub fn disconnect(
+    env: Env,
+    resource: ResourceArc<PeripheralRef>,
+    timeout_ms: u64,
+) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
+    let peripheral_arc = resource.0.clone();
+
+    let env_pid = env.pid().clone();
+
+    RUNTIME.spawn(async move {
+        let (peripheral, pid) = {
+            let state_guard = peripheral_arc.lock().unwrap();
+            (state_guard.peripheral.clone(), state_guard.pid)
+        };
+
+        PeripheralState::set_state(&peripheral_arc, PeripheralStateEnum::Disconnecting);
+
+        info!("🔗 Disconnecting from Peripheral: {:?}, caller pid: {:?}, state pid: {:?}", peripheral.id(), env_pid.as_c_arg(), pid.as_c_arg());
+
+        let mut disconnected = false;
+        match timeout(Duration::from_millis(timeout_ms), peripheral.disconnect()).await {
+            Ok(Ok(_)) => {
+                info!("✅ Disconnected from peripheral: {:?}", peripheral.id());
+                disconnected = true;
+            }
+            Ok(Err(e)) => warn!("❌ Failed to disconnect: {:?}", e),
+            Err(_) => warn!("⏳ Disconnect attempt timed out!"),
+        }
+
+        if !disconnected {
+            warn!("❌ Disconnect failed.");
+            PeripheralState::set_state(&peripheral_arc, PeripheralStateEnum::Connected);
+            return;
+        }
+
+        PeripheralState::set_state(&peripheral_arc, PeripheralStateEnum::Disconnected);
+    });
+
+    Ok(resource)
+}
+
+
+
+
+
+
+
 #[rustler::nif]
 pub fn subscribe(
     env: Env,
@@ -229,6 +280,65 @@ pub fn subscribe(
                         Err(_) => warn!("⏳ Timeout while waiting for notifications."),
                     }
                 });
+            }
+            None => info!("⚠️ Characteristic not found: {}", characteristic_uuid),
+        }
+    });
+
+    Ok(resource)
+}
+
+
+#[rustler::nif]
+pub fn unsubscribe(
+    env: Env,
+    resource: ResourceArc<PeripheralRef>,
+    characteristic_uuid: String,
+    timeout_ms: u64,
+) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
+    let peripheral_arc = resource.0.clone();
+
+    let env_pid = env.pid().clone();
+
+    RUNTIME.spawn(async move {
+        let (peripheral, state, pid) = {
+            let state_guard = peripheral_arc.lock().unwrap();
+            (state_guard.peripheral.clone(), state_guard.state, state_guard.pid)
+        };
+
+        info!("🔗 Unsubscribing from Peripheral: {:?}, caller pid: {:?}, state pid: {:?}", peripheral.id(), env_pid.as_c_arg(), pid.as_c_arg());
+
+        if state != PeripheralStateEnum::ServicesDiscovered {
+            warn!("⚠️ Services not yet discovered. Retrying...");
+            let discovered = discover_services_internal(&peripheral_arc, timeout_ms).await;
+            if !discovered {
+                warn!("❌ Cannot proceed with unsubscribe. No services discovered.");
+                return;
+            }
+        }
+
+        let characteristics = peripheral.characteristics();
+        let characteristic = characteristics
+            .iter()
+            .find(|c| c.uuid.to_string() == characteristic_uuid)
+            .cloned();
+
+        match characteristic {
+            Some(char) => {
+                debug!("🔔 Unsubscribing from characteristic: {:?}", char.uuid);
+
+                if !char.properties.contains(CharPropFlags::NOTIFY) {
+                    debug!("⚠️ Characteristic {:?} does NOT support notifications!", char.uuid);
+                    return;
+                }
+
+                match timeout(Duration::from_millis(timeout_ms), peripheral.unsubscribe(&char)).await {
+                    Ok(Ok(_)) => info!("✅ Unsubscribed from characteristic: {:?}", char.uuid),
+                    _ => {
+                        warn!("❌ Failed to unsubscribe from {:?}", char.uuid);
+                        return;
+                    }
+                }
             }
             None => info!("⚠️ Characteristic not found: {}", characteristic_uuid),
         }

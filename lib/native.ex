@@ -1,17 +1,17 @@
 defmodule RustlerBtleplug.Native do
   version = Mix.Project.config()[:version]
 
-  use Rustler,
-    otp_app: :rustler_btleplug,
-    crate: :btleplug_client,
-    target: System.get_env("RUSTLER_TARGET")
-
-  # use RustlerPrecompiled,
+  # use Rustler,
   #   otp_app: :rustler_btleplug,
   #   crate: :btleplug_client,
-  #   base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v#{version}",
-  #   force_build: System.get_env("RUSTLER_PRECOMPILATION_EXAMPLE_BUILD") in ["1", "true"],
-  #   version: version
+  #   target: System.get_env("RUSTLER_TARGET")
+
+  use RustlerPrecompiled,
+    otp_app: :rustler_btleplug,
+    crate: :btleplug_client,
+    base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v#{version}",
+    force_build: System.get_env("RUSTLER_PRECOMPILATION_EXAMPLE_BUILD") in ["1", "true"],
+    version: version
 
   @type central() :: reference()
   @type peripheral() :: reference()
@@ -51,8 +51,14 @@ defmodule RustlerBtleplug.Native do
   @spec connect(peripheral(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
   def connect(_peripheral, _timeout \\ @default_timeout), do: error()
 
+  @spec disconnect(peripheral(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
+  def disconnect(_peripheral, _timeout \\ @default_timeout), do: error()
+
   @spec subscribe(peripheral(), uuid(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
   def subscribe(_peripheral, _characteristic, _timeout \\ @default_timeout), do: error()
+
+  @spec unsubscribe(peripheral(), uuid(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
+  def unsubscribe(_peripheral, _characteristic, _timeout \\ @default_timeout), do: error()
 
   # @spec create_gatt_peripheral(String.t(), Number.t()) ::
   #         {:ok, gatt_peripheral()} | {:error, term()}

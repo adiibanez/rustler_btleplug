@@ -30,7 +30,8 @@ end
 ```livebook
 Mix.install([
   {:rustler_btleplug, "~> 0.0.6-alpha"}
-])```
+])
+```
 
 ## Usage Examples
 

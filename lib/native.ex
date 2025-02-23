@@ -11,7 +11,20 @@ defmodule RustlerBtleplug.Native do
     crate: :btleplug_client,
     base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v#{version}",
     force_build: System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"],
-    version: version
+    version: version,
+    max_retries: 0,
+    targets: [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin",
+      "aarch64-unknown-linux-gnu",
+      "aarch64-unknown-linux-musl",
+      #"arm-unknown-linux-gnueabihf",
+      # "riscv64gc-unknown-linux-gnu",
+      #"x86_64-pc-windows-gnu",
+      "x86_64-pc-windows-msvc",
+      "x86_64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl",
+    ]
 
   @type central() :: reference()
   @type peripheral() :: reference()

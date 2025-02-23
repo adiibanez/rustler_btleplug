@@ -1,7 +1,7 @@
 defmodule RustlerBtleplug.MixProject do
   use Mix.Project
 
-  @version "0.0.3-alpha"
+  @version "0.0.4-alpha"
   @source_url "https://github.com/adiibanez/rustler_btleplug"
   @dev? String.ends_with?(@version, "-dev")
   @force_build? System.get_env("BTLEPLUG_BUILD") in ["1", "true"]
@@ -32,7 +32,6 @@ defmodule RustlerBtleplug.MixProject do
     ]
   end
 
-  # Run "mix help compile.app" to learn about applications.
   def application do
     [
       # mod: {RustlerBtleplug.Application, []},
@@ -43,7 +42,10 @@ defmodule RustlerBtleplug.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{GitHub: "https://github.com/adiibanez/rustler_btleplug"},
+      links: %{
+        GitHub: "https://github.com/adiibanez/rustler_btleplug",
+        LiveBook: "https://github.com/adiibanez/rustler_btleplug/blob/main/livebooks/ble_demo.livemd"
+      },
       files: [
         "lib",
         "native/btleplug_client/.cargo",

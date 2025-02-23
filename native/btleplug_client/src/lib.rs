@@ -2,8 +2,8 @@
 // #![allow(dead_code)]
 // #![allow(unused_variables)]
 // #![allow(deprecated)]
-// #![allow(unused_must_use)]
-// #![allow(non_local_definitions)]
+#![allow(unused_must_use)]
+#![allow(non_local_definitions)]
 // #![allow(unexpected_cfgs)]
 // #[cfg(not(clippy))]
 // #[rustler::nif(schedule = "DirtyCpu")]
@@ -31,9 +31,7 @@ mod gatt_peripheral;
 mod logging;
 mod peripheral;
 
-#[macro_use]
 extern crate rustler;
-#[macro_use]
 extern crate rustler_codegen;
 
 use central_manager::*;

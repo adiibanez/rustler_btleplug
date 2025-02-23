@@ -3,6 +3,7 @@ rustflags = [
     "-A", "unexpected_cfgs",
     "-C", "link-arg=-undefined",
     "-C", "link-arg=dynamic_lookup",
+    "-C", "link-arg=-Wl,-install_name,@rpath/libbtleplug_client.dylib"
 ]
 
 [target.x86_64-unknown-linux-gnu]

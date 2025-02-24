@@ -27,7 +27,6 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 mod atoms;
 mod central_manager;
-mod gatt_peripheral;
 mod logging;
 mod peripheral;
 

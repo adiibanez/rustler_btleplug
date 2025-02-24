@@ -2,8 +2,8 @@ name: Precomp NIFs
 
 on:
   push:
-    #branches: #- main
-    #- refactoring
+    branches: 
+      - main
     paths:
     # Just run on main branch if "native" path changed.
     - "native/**"
@@ -124,45 +124,4 @@ jobs:
           ${{ steps.build-crate.outputs.file-path }}
       if: startsWith(github.ref, 'refs/tags/')
   
-  publish_hex:
-    name: Publish to Hex.pm
-    needs: build_release
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
-    
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Elixir
-        uses: erlef/setup-beam@v1
-        with:
-          elixir-version: '1.15.7'
-          otp-version: '26.2'
-          
-      - name: Restore dependencies cache
-        uses: actions/cache@v3
-        with:
-          path: deps
-          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
-          restore-keys: ${{ runner.os }}-mix-
-          
-      - name: Install dependencies
-        run: |
-          mix local.hex --force
-          mix local.rebar --force
-          mix deps.get
-      
-      - name: Generate rustler_precompiled checksum file
-        run: |
-          mix rustler_precompiled.download RustlerBtleplug.Native --all --ignore-unavailable
-          
-      - name: Build Hex.pm package
-        run: |
-          mix hex.build
-
-      - name: Publish to Hex.pm
-        env:
-          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
-        run: mix hex.publish --yes --replace
-
  

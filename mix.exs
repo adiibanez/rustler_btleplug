@@ -1,7 +1,7 @@
 defmodule RustlerBtleplug.MixProject do
   use Mix.Project
 
-  @version "0.0.7-alpha"
+  @version "0.0.8-alpha"
   @source_url "https://github.com/adiibanez/rustler_btleplug"
   @dev? String.ends_with?(@version, "-dev")
   @force_build? System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"]
@@ -17,11 +17,12 @@ defmodule RustlerBtleplug.MixProject do
     if @force_build? == true or @dev? == true do
       IO.puts("Forcing rustler build for version #{@version} dev?: #{@dev?}")
     else
-      IO.puts("Using precompiled NIFs #{@version} dev?: #{@dev?} #{System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"]}")
+      IO.puts(
+        "Using precompiled NIFs #{@version} dev?: #{@dev?} #{System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"]}"
+      )
     end
 
     if is_binary(System.get_env("NERVES_SDK_SYSROOT")) do
-
       components =
         System.get_env("CC")
         |> tap(&System.put_env("RUSTFLAGS", "-C linker=#{&1}"))
@@ -36,8 +37,11 @@ defmodule RustlerBtleplug.MixProject do
       mapping = Map.get(@nerves_rust_target_triple_mapping, String.to_atom(target_triple))
 
       if is_binary(mapping) do
-        IO.puts("mapping: #{mapping}, TARGET_ARCH #{System.get_env("TARGET_ARCH")}, NERVES_SDK_SYSROOT #{System.get_env("NERVES_SDK_SYSROOT")}, RUSTFLAGS: #{IO.puts("NERVES_SDK_SYSROOT #{System.get_env("RUST_FLAGS")}")}")
-        #System.put_env("TARGET_ARCH", "aarch64-unknown-linux-gnu")
+        IO.puts(
+          "mapping: #{mapping}, TARGET_ARCH #{System.get_env("TARGET_ARCH")}, NERVES_SDK_SYSROOT #{System.get_env("NERVES_SDK_SYSROOT")}, RUSTFLAGS: #{IO.puts("NERVES_SDK_SYSROOT #{System.get_env("RUST_FLAGS")}")}"
+        )
+
+        # System.put_env("TARGET_ARCH", "aarch64-unknown-linux-gnu")
         System.put_env("RUSTLER_TARGET", mapping)
       end
     end

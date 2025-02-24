@@ -21,10 +21,8 @@ rustc_version = "0.4"
 
 [dependencies]
 log = "0.4.22"
-# env_logger = "0.11"
 pretty_env_logger = "0.5.0"
 chrono = "0.4.3"
-# { git = "https://github.com/uuid-rs/uuid.git", branch = "main" } # "1.4" #{ version = "1.4", features = ["serde"] }
 
 btleplug = { version = "0.11.7", features = ["serde"] }
 rustler = { version = "0.36.1", default-features = false, features = ["derive", "nif_version_2_15"] }

@@ -95,8 +95,6 @@ defmodule RustlerBtleplug.NativeTest do
     after
       1000 -> flunk("Did not receive :btleplug_peripheral_discovered message")
     end
-
-
   end
 
   test "BLE fail to find unknown peripheral" do

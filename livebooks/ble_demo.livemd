@@ -2,8 +2,8 @@
 
 ```elixir
 Mix.install([
-  {:kino, "~> 0.12.0"},
-  # {:kino, github: "livebook-dev/kino"},
+  {:kino, "~> 0.14.2"},
+  # {:kino_user_presence, "~> 0.1.2"},
   {:rustler_btleplug, "~> 0.0.6-alpha"}
 ])
 ```
@@ -19,6 +19,8 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   use GenServer
   require Logger
 
+  defstruct ble: %{peripheral: nil, central: nil, messages: []} frames: %{}, clients: %{a: [], b: []}
+
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: @name)
   end
@@ -33,49 +35,50 @@ defmodule RustlerBtleplug.GenserverLiveBook do
     )
   end
 
-  def init(opts) do
+  def init(state) do
     Process.flag(:trap_exit, true)
-    IO.puts("#{__MODULE__} init #{inspect(opts)}")
+    # IO.puts("#{__MODULE__} init #{inspect(opts)}")
+    {:ok, state, {:continue, :setup}}
+  end
 
-    {:ok,
-     %{
+  def handle_continue(_, state) do
+    {:noreply,
+     state
+     |> Map.put(:ble, %{
        central: nil,
        peripheral: nil,
        messages: []
-     }}
+     })
+     |> Map.put(:frames, %{})
+     |> Map.update!(:frames, fn
+       frames ->
+         frames
+         |> Map.put_new(:messages, Kino.Frame.new())
+
+         |> Map.put_new(:peripherals, Kino.Frame.new(placeholder: true))
+         # |> Map.put_new(:characteristics, Kino.Frame.new(placeholder: false))
+     end)
+     |> mount_outer_frame()}
   end
 
-  def handle_info({:btleplug_peripheral_discovered, uuid}, state) do
-    Logger.debug("NIF Peripheral Discovered: #{uuid}")
-    new_state = update_state_with_message(state, {:btleplug_peripheral_discovered, uuid})
-
-    {:noreply, new_state}
+  def mount_outer_frame(state) do
+    state.frames.messages |> Kino.render()
   end
 
-  def handle_info({:btleplug_peripheral_connected, uuid}, state) do
-    Logger.debug("NIF Peripheral Connected: #{uuid}")
-    new_state = update_state_with_message(state, {:btleplug_peripheral_connected, uuid})
-    {:noreply, new_state}
-  end
-
-  def handle_info({:btleplug_peripheral_disconnected, uuid}, state) do
-    Logger.debug("NIF Peripheral Disconnected: #{uuid}")
-    new_state = update_state_with_message(state, {:btleplug_peripheral_disconnected, uuid})
-    {:noreply, new_state}
-  end
-
-  def handle_info({:btleplug_characteristic_value_changed, uuid, value}, state) do
-    Logger.debug("NIF Characteristic Value Changed for #{uuid}: #{value}")
-
-    new_state =
-      update_state_with_message(state, {:btleplug_characteristic_value_changed, uuid, value})
-
-    {:noreply, new_state}
+  def render_all(state) do
+    Kino.Frame.render(state.frames.messages, Kino.Layout.grid(["The A's", state.ble.messages]))
+    # Kino.Frame.render(state.frames.cha, Kino.Layout.grid(["The B's", state.clients.b]))
+    state
   end
 
   def handle_info(msg, state) do
     Logger.debug("NIF msg received : #{inspect(msg)}")
-    new_state = update_state_with_message(state, msg)
+
+    new_state =
+      state
+      |> update_state_with_message(msg)
+      |> render_all()
+
     {:noreply, new_state}
   end
 
@@ -115,7 +118,11 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   def handle_cast({:set_central, central_ref}, state) do
     Logger.debug("handle_cast :set_central #{inspect(central_ref)}")
 
-    new_state = %{state | central: central_ref}
+    new_state =
+      state
+      |> update_in([:ble, :central], fn _central -> central_ref end)
+
+    # |> Map.put(:ble, %{state.ble | central: central_ref})
 
     Logger.debug("handle_cast :set_central new_state: #{inspect(new_state)}")
     {:noreply, new_state}
@@ -241,9 +248,11 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   defp update_state_with_message(state, message) do
-    %{state | messages: [message | state.messages]}
+    state
+    |> Map.put(:ble, %{state.ble | messages: [message | state.ble.messages]})
   end
 end
+
 ```
 
 <!-- livebook:{"reevaluate_automatically":true} -->
@@ -253,7 +262,7 @@ ble_device_name = "Pressure"
 ble_characteristic_uuid = "61d20a90-71a1-11ea-ab12-0800200c9a66"
 default_timeout = 3000
 
-defmodule ParentSupervisor do
+defmodule BleParentSupervisor do
   use Supervisor
 
   def start_link(init_arg) do
@@ -272,16 +281,16 @@ defmodule ParentSupervisor do
   end
 end
 
-if is_pid(Process.whereis(ParentSupervisor)) do
-  Supervisor.stop(ParentSupervisor)
+if is_pid(Process.whereis(BleParentSupervisor)) do
+  Supervisor.stop(BleParentSupervisor)
 end
 
 # Start the supervision tree
-sup_pid = ParentSupervisor.start_link([])
+sup_pid = BleParentSupervisor.start_link([])
 
 # Process.alive?(:ble_genserver)
 # Output the supervision tree
-Kino.Process.sup_tree(ParentSupervisor)
+Kino.Process.sup_tree(BleParentSupervisor)
 
 Kino.Process.render_seq_trace(self(), fn ->
   {:ok, central_ref} = RustlerBtleplug.GenserverLiveBook.create_central()

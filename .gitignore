@@ -44,3 +44,5 @@ target/
 
 priv/native/libbtleplug_client.so
 priv/native
+
+.vscode

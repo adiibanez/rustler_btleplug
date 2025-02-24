@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(unused_variables)]
 use crate::atoms;
 use crate::peripheral::PeripheralRef;
 use crate::peripheral::PeripheralState;

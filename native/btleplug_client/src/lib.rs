@@ -1,6 +1,6 @@
 // #![allow(unused_imports)]
 // #![allow(dead_code)]
-// #![allow(unused_variables)]
+//#![allow(unused_variables)]
 // #![allow(deprecated)]
 #![allow(unused_must_use)]
 #![allow(non_local_definitions)]
@@ -57,7 +57,11 @@ fn on_load(env: Env, _info: Term) -> bool {
 
 #[rustler::nif]
 pub fn test_string<'a>(env: Env<'a>, uuid: Term<'a>) -> Result<Term<'a>, RustlerError> {
-    debug!("Test string: {:?}", uuid);
+    debug!(
+        "Test string: uuid: {:?}, pid: {:?}",
+        uuid,
+        env.pid().as_c_arg()
+    );
     Ok(uuid)
 }
 

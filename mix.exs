@@ -1,7 +1,7 @@
 defmodule RustlerBtleplug.MixProject do
   use Mix.Project
 
-  @version "0.0.8-alpha"
+  @version "0.0.9-alpha"
   @source_url "https://github.com/adiibanez/rustler_btleplug"
   @dev? String.ends_with?(@version, "-dev")
   @force_build? System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"]

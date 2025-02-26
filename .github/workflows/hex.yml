@@ -38,14 +38,14 @@ jobs:
           
       - name: Generate rustler_precompiled checksum file
         run: |
-          mix rustler_precompiled.download RustlerBtleplug.Native --only-local
+          # mix rustler_precompiled.download RustlerBtleplug.Native --only-local
           mix rustler_precompiled.download RustlerBtleplug.Native --all --ignore-unavailable
           
       - name: Build Hex.pm package
         run: mix hex.build
         
       - name: Publish to Hex.pm
-        if: startsWith(github.ref, 'refs/tags/')
+        if: github.event_name == 'workflow_dispatch'
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
         run: mix hex.publish --yes --replace

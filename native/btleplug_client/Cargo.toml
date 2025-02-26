@@ -40,20 +40,6 @@ mimalloc = { version = "*", default-features = false , optional = true }
 rand = "0.9.0"
 # clippy = { version = "0.0.302" }
 
-#[target.'cfg(target_os = "macos")']
-#rustflags = [
-#    "-C", "link-arg=-Wl,-install_name,@rpath/libbtleplug_client.dylib"
-#]
-
-# https://github.com/elixir-nx/ortex/blob/main/native/ortex/.cargo/config.toml
-[target.'cfg(target_os = "macos")']
-rustflags = [
-    "-C", "link-arg=-undefined",
-    "-C", "link-arg=dynamic_lookup",
-    "-C", "link-arg=-fapple-link-rtlib",
-    "-C", "link-args=-Wl,-rpath,@loader_path",
-]
-
 #[target.aarch64-unknown-linux-gnu.dependencies]
 #dbus = {version = "0.9.7", features = ["vendored"]}
 
@@ -71,6 +57,3 @@ serde = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 btleplug = { version = "0.11.7", default-features = false }
 mimalloc = { version = "*", default-features = false }
-
-#[workspace.lints.rust]
-#unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }

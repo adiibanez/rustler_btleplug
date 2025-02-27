@@ -351,9 +351,11 @@ data = [
 
 Kino.DataTable.new(data)
 
-data = Process.info(self())
-Kino.Tree.new(data)
+# data = Process.info(self())
+# Kino.Tree.new(data)
+```
 
+```elixir
 Kino.Mermaid.new("""
 graph TD;
   A<--B;
@@ -377,4 +379,29 @@ db:L -- R:server
 disk1:T -- B:server
 disk2:T -- B:db
 """)
+
+Kino.Mermaid.new("""
+---
+config:
+  layout: elk
+  look: handDrawn
+  
+---
+graph TD\n    Adapter[\"Adapter: CoreBluetooth\"]\n    Adapter --> b480e9ef-38bb-eeab-f910-015c979dc0da[\"Peripheral: Apple TV<br>RSSI: -88dBm<br>TX Power: N/A\"]\n    Adapter --> 4a38bf67-36b6-8532-0264-6f768b1c66e2[\"Peripheral: PressureSensor<br>RSSI: 127dBm<br>TX Power: N/A\"]\n    4a38bf67-36b6-8532-0264-6f768b1c66e2 --> 453b02b0-71a1-11ea-ab12-0800200c9a66[\"Service: 453b02b0-71a1-11ea-ab12-0800200c9a66\"]\n    453b02b0-71a1-11ea-ab12-0800200c9a66 --> 61d20a90-71a1-11ea-ab12-0800200c9a66[\"Characteristic: 61d20a90-71a1-11ea-ab12-0800200c9a66 (Read, Notify)\"]\n    Adapter --> 1b3f70a1-704f-a0d6-85ac-b7c33cd31969[\"Peripheral: 1b3f70a1-704f-a0d6-85ac-b7c33cd31969<br>RSSI: -80dBm<br>TX Power: N/A\"]\n    Adapter --> 6c2aa1b0-64b1-4767-9cd2-bb93dab30b14[\"Peripheral: 6c2aa1b0-64b1-4767-9cd2-bb93dab30b14<br>RSSI: -84dBm<br>TX Power: N/A\"]
+""")
+
+test =
+  Kino.Mermaid.new("""
+  ---
+  config:
+    layout: elk
+    look: handDrawn
+    theme: dark
+  ---
+  mindmap
+      Root
+          A
+              B
+              C
+  """)
 ```

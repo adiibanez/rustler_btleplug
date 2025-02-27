@@ -1,5 +1,5 @@
 // #![allow(unused_imports)]
- #![allow(dead_code)]
+#![allow(dead_code)]
 #![allow(unused_variables)]
 // #![allow(deprecated)]
 #![allow(unused_must_use)]
@@ -27,11 +27,11 @@ static GLOBAL: MiMalloc = MiMalloc;
 
 mod atoms;
 mod central_manager;
-mod logging;
-mod peripheral;
 mod central_manager_finder;
 mod central_manager_state;
 mod central_manager_utils;
+mod logging;
+mod peripheral;
 
 extern crate rustler;
 extern crate rustler_codegen;

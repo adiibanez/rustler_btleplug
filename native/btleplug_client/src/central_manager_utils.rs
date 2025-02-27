@@ -1,28 +1,22 @@
 #![allow(unused_imports)]
 use crate::central_manager_state::CentralRef;
 
-use rustler::{Encoder, Term, Env, Error as RustlerError, ResourceArc};
+use rustler::{Encoder, Env, Error as RustlerError, ResourceArc, Term};
 use std::collections::HashMap;
- 
-use btleplug::api::{
-    Central, Peripheral,
-};
+
+use btleplug::api::{Central, Peripheral};
 
 use log::{debug, info, warn};
 
 use crate::RUNTIME;
 use std::sync::Arc;
 
-
 use serde_json::{Map, Value};
 
-use std::iter::FromIterator; 
-use btleplug::api::{
-    CharPropFlags, PeripheralProperties,
-};
+use btleplug::api::{CharPropFlags, PeripheralProperties};
+use std::iter::FromIterator;
 
 use btleplug::platform::Adapter;
-
 
 pub async fn get_peripheral_properties(
     adapter: &Adapter,
@@ -88,7 +82,7 @@ pub fn get_adapter_state_graph(
 ) -> Result<Term<'_>, RustlerError> {
     let env_pid = env.pid();
     let resource_arc = resource.0.clone();
-    
+
     let (adapter, _pid) = {
         let central_state = resource_arc.lock().unwrap();
         (central_state.adapter.clone(), central_state.pid)
@@ -103,10 +97,11 @@ pub fn get_adapter_state_graph(
 
     match rx.blocking_recv() {
         Ok(graph) => Ok(graph.encode(env)),
-        Err(_) => Err(RustlerError::Term(Box::new("Failed to retrieve adapter state graph"))),
+        Err(_) => Err(RustlerError::Term(Box::new(
+            "Failed to retrieve adapter state graph",
+        ))),
     }
 }
-
 
 pub fn properties_to_map<'a>(env: Env<'a>, props: &PeripheralProperties) -> Term<'a> {
     let mut map = HashMap::new();
@@ -166,10 +161,6 @@ pub fn properties_to_map<'a>(env: Env<'a>, props: &PeripheralProperties) -> Term
     map.encode(env)
 }
 
-
-
-
-
 pub async fn adapter_state_to_map(adapter: &Adapter) -> HashMap<String, Value> {
     let mut result = HashMap::new();
 
@@ -218,12 +209,19 @@ pub async fn adapter_state_to_map(adapter: &Adapter) -> HashMap<String, Value> {
 
                 let mut char_map = HashMap::new();
                 char_map.insert("uuid".to_string(), Value::String(char_id.clone()));
-                char_map.insert("properties".to_string(), Value::String(char_props.to_string()));
+                char_map.insert(
+                    "properties".to_string(),
+                    Value::String(char_props.to_string()),
+                );
 
-                characteristics_list.push(Value::Object(Map::from_iter(char_map))); // ✅ FIXED HERE
+                characteristics_list.push(Value::Object(Map::from_iter(char_map)));
+                // ✅ FIXED HERE
             }
 
-            service_map.insert("characteristics".to_string(), Value::Array(characteristics_list));
+            service_map.insert(
+                "characteristics".to_string(),
+                Value::Array(characteristics_list),
+            );
             services_list.push(Value::Object(Map::from_iter(service_map))); // ✅ FIXED HERE
         }
 
@@ -256,7 +254,9 @@ pub async fn adapter_state_to_mermaid(adapter: &Adapter) -> String {
             None => continue, // Skip if no properties found
         };
 
-        let peripheral_name = properties.local_name.unwrap_or_else(|| peripheral_id.clone());
+        let peripheral_name = properties
+            .local_name
+            .unwrap_or_else(|| peripheral_id.clone());
         let rssi_display = properties
             .rssi
             .map(|rssi| format!("RSSI: {}dBm", rssi))
@@ -288,10 +288,26 @@ pub async fn adapter_state_to_mermaid(adapter: &Adapter) -> String {
                 let char_flags = format!(
                     "({})",
                     [
-                        if char_props.contains(CharPropFlags::READ) { "Read" } else { "" },
-                        if char_props.contains(CharPropFlags::WRITE) { "Write" } else { "" },
-                        if char_props.contains(CharPropFlags::NOTIFY) { "Notify" } else { "" },
-                        if char_props.contains(CharPropFlags::INDICATE) { "Indicate" } else { "" },
+                        if char_props.contains(CharPropFlags::READ) {
+                            "Read"
+                        } else {
+                            ""
+                        },
+                        if char_props.contains(CharPropFlags::WRITE) {
+                            "Write"
+                        } else {
+                            ""
+                        },
+                        if char_props.contains(CharPropFlags::NOTIFY) {
+                            "Notify"
+                        } else {
+                            ""
+                        },
+                        if char_props.contains(CharPropFlags::INDICATE) {
+                            "Indicate"
+                        } else {
+                            ""
+                        },
                     ]
                     .iter()
                     .filter(|s| !s.is_empty())

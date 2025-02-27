@@ -3,7 +3,6 @@
 ```elixir
 Mix.install([
   {:kino, "~> 0.15.2"},
-  # {:kino_user_presence, "~> 0.1.2"},
   {:rustler_btleplug, "~> 0.0.10-alpha"}
 ])
 ```

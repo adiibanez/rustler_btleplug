@@ -5,15 +5,12 @@ use crate::central_manager_state::*;
 
 use log::{info, warn};
 use rustler::{Env, Error as RustlerError, ResourceArc};
- 
-use btleplug::api::{
-    Central, Peripheral,
-};
+
+use btleplug::api::{Central, Peripheral};
 
 use crate::RUNTIME;
 use std::sync::{Arc, Mutex};
 use tokio::time::{timeout, Duration};
-
 
 #[rustler::nif(schedule = "DirtyIo")]
 pub fn find_peripheral_by_name(

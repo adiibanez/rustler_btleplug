@@ -2,7 +2,7 @@ use crate::peripheral::PeripheralRef;
 
 use rustler::{LocalPid, ResourceArc};
 use std::collections::HashMap;
- 
+
 use btleplug::api::CentralEvent;
 use btleplug::platform::{Adapter, Manager};
 

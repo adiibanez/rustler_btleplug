@@ -2,17 +2,15 @@
 #![allow(unused_variables)]
 use crate::atoms;
 
-use crate::central_manager_state::CentralRef;
 use crate::central_manager_state::CentralManagerState;
+use crate::central_manager_state::CentralRef;
 use crate::central_manager_utils::*;
 
 use log::{debug, info, warn};
 use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc};
 use std::collections::HashMap;
- 
-use btleplug::api::{
-    Central, CentralEvent, Manager as _, Peripheral, ScanFilter,
-};
+
+use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral, ScanFilter};
 use btleplug::platform::Manager;
 use futures::StreamExt;
 
@@ -277,7 +275,6 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
     Ok(resource)
 }
 
-
 #[rustler::nif]
 pub fn start_scan(
     env: Env,
@@ -375,4 +372,3 @@ pub fn stop_scan(
     });
     Ok(resource)
 }
-

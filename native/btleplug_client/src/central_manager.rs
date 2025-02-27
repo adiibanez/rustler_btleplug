@@ -26,6 +26,7 @@ pub struct CentralManagerState {
     pub manager: Manager,
     pub event_sender: mpsc::Sender<CentralEvent>,
     pub event_receiver: Arc<RwLock<mpsc::Receiver<CentralEvent>>>,
+    pub discovered_peripherals: Arc<Mutex<HashMap<String, ResourceArc<PeripheralRef>>>>,
 }
 
 impl CentralManagerState {
@@ -42,6 +43,7 @@ impl CentralManagerState {
             adapter,
             event_sender,
             event_receiver,
+            discovered_peripherals: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -353,108 +355,111 @@ pub fn stop_scan(
     Ok(resource)
 }
 
-#[rustler::nif]
-pub fn find_peripheral(
-    env: Env,
-    resource: ResourceArc<CentralRef>,
-    uuid: String,
-    timeout_ms: u64,
-) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
-    let resource_arc = resource.0.clone();
-    let central_state = resource_arc.lock().unwrap();
-
-    let adapter = central_state.adapter.clone();
-    let pid = central_state.pid;
-
-    let env_pid = env.pid();
-
-    info!(
-        "Looking for peripheral with UUID: {}, caller pid: {:?}, state pid: {:?}",
-        uuid,
-        env_pid.as_c_arg(),
-        pid.as_c_arg()
-    );
-
-    let peripherals = RUNTIME.block_on(async {
-        timeout(Duration::from_millis(timeout_ms), adapter.peripherals())
-            .await
-            .map_err(|_| RustlerError::Term(Box::new("Timeout while fetching peripherals")))? // ✅ Timeout error
-            .map_err(|e| RustlerError::Term(Box::new(format!("Failed to get peripherals: {}", e))))
-    })?;
-
-    for peripheral in peripherals {
-        info!(
-            "Iterating peripheral id: {:?}, looking for UUID: {:?}",
-            peripheral.id(),
-            uuid
-        );
-        if peripheral.id().to_string() == uuid {
-            info!("✅ Found peripheral: {:?}", peripheral.id());
-            let peripheral_state = PeripheralState::new(pid, peripheral);
-            return Ok(ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(
-                peripheral_state,
-            )))));
-        }
-    }
-
-    Err(RustlerError::Term(Box::new("Peripheral not found")))
-}
-
-#[rustler::nif]
-pub fn find_peripheral_by_name(
-    env: Env,
+#[rustler::nif(schedule = "DirtyIo")]
+pub fn find_peripheral_by_name<'a>(
+    env: Env<'a>,
     resource: ResourceArc<CentralRef>,
     name: String,
     timeout_ms: u64,
 ) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
+    let env_pid = env.pid();
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<ResourceArc<PeripheralRef>, String>>();
+
     let resource_arc = resource.0.clone();
-    let central_state = resource_arc.lock().unwrap();
-    let adapter = central_state.adapter.clone();
-    let pid = central_state.pid;
+    let (adapter, pid, discovered_peripherals, event_receiver) = {
+        let central_state = resource_arc.lock().unwrap();
+        (
+            central_state.adapter.clone(),
+            central_state.pid,
+            central_state.discovered_peripherals.clone(),
+            central_state.event_receiver.clone(),
+        )
+    };
 
-    info!(
-        "Looking for peripheral with name: {}, caller pid: {:?}, state pid: {:?}",
-        name,
-        env.pid().as_c_arg(),
-        pid.as_c_arg()
-    );
+    let name_clone = name.clone();
+    let discovered_peripherals_clone = discovered_peripherals.clone();
 
-    let peripherals = RUNTIME.block_on(async {
-        timeout(Duration::from_millis(timeout_ms), adapter.peripherals())
-            .await
-            .map_err(|_| RustlerError::Term(Box::new("Timeout while fetching peripherals")))? // ✅ Timeout error
-            .map_err(|e| RustlerError::Term(Box::new(format!("Failed to get peripherals: {}", e))))
-    })?;
+    RUNTIME.spawn(async move {
+        info!(
+            "🔍 Looking for peripheral with name: {}, caller pid: {:?}, state pid: {:?}",
+            name_clone,
+            env_pid.as_c_arg(),
+            pid.as_c_arg()
+        );
 
-    for peripheral in peripherals {
-        let properties = RUNTIME.block_on(async {
-            timeout(Duration::from_millis(timeout_ms), peripheral.properties())
-                .await
-                .map_err(|_| RustlerError::Term(Box::new("Timeout while fetching properties")))?
-                .map_err(|e| {
-                    RustlerError::Term(Box::new(format!("Failed to get properties: {}", e)))
-                })
-        })?;
+        let cached_peripherals: Vec<(String, ResourceArc<PeripheralRef>)> = {
+            let cache = discovered_peripherals_clone.lock().unwrap();
+            cache
+                .iter()
+                .map(|(id, p)| (id.clone(), p.clone()))
+                .collect()
+        };
 
-        if let Some(peripheral_name) = properties.unwrap().local_name {
-            let search_name = name.trim();
-            let peripheral_name_trimmed = peripheral_name.trim();
-            let contains_match = peripheral_name_trimmed.contains(search_name);
+        for (id, cached_peripheral_ref) in cached_peripherals {
+            info!("🔍 Checking cached PeripheralRef: {}", id);
 
-            info!(
-                "Iterating peripheral name: {:?}, searching for: {:?}, contains: {:?}",
-                peripheral_name_trimmed, search_name, contains_match
-            );
+            let _ = tx.send(Ok(cached_peripheral_ref.clone()));
+            return;
+        }
 
-            if contains_match {
-                info!("✅ Found peripheral: {:?}", peripheral.id());
-                let peripheral_state = PeripheralState::new(pid, peripheral);
-                return Ok(ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(
-                    peripheral_state,
-                )))));
+        // **Scan for new peripherals**
+        let peripherals =
+            match timeout(Duration::from_millis(timeout_ms), adapter.peripherals()).await {
+                Ok(Ok(peripherals)) => peripherals,
+                Ok(Err(e)) => {
+                    warn!("❌ Failed to get peripherals: {:?}", e);
+                    let _ = tx.send(Err(format!("Failed to get peripherals: {}", e)));
+                    return;
+                }
+                Err(_) => {
+                    warn!("⏳ Timeout while fetching peripherals");
+                    let _ = tx.send(Err("Timeout while fetching peripherals".to_string()));
+                    return;
+                }
+            };
+
+        for peripheral in peripherals {
+            let properties =
+                match timeout(Duration::from_millis(timeout_ms), peripheral.properties()).await {
+                    Ok(Ok(Some(props))) => props,
+                    _ => continue,
+                };
+
+            if let Some(peripheral_name) = properties.local_name {
+                if peripheral_name.contains(&name_clone) {
+                    let peripheral_state = PeripheralState::new(
+                        pid,
+                        Arc::new(peripheral.clone()),
+                        event_receiver.clone(),
+                    );
+                    let peripheral_ref =
+                        ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(peripheral_state))));
+
+                    info!(
+                        "✅ Storing PeripheralRef in cache: {:?} (Peripheral Ptr: {:p})",
+                        peripheral.id(),
+                        Arc::as_ptr(&peripheral_ref.0)
+                    );
+
+                    discovered_peripherals_clone
+                        .lock()
+                        .unwrap()
+                        .insert(peripheral.id().to_string(), peripheral_ref.clone());
+
+                    let _ = tx.send(Ok(peripheral_ref.clone()));
+                    return;
+                }
             }
         }
-    }
 
-    Err(RustlerError::Term(Box::new("Peripheral not found")))
+        let _ = tx.send(Err("Peripheral not found".to_string()));
+    });
+
+    match rx.blocking_recv() {
+        Ok(Ok(result)) => Ok(result),
+        Ok(Err(err_msg)) => Err(RustlerError::Term(Box::new(format!("{:?}", err_msg)))),
+        Err(_) => Err(RustlerError::Term(Box::new(
+            "Failed to retrieve result".to_string(),
+        ))),
+    }
 }

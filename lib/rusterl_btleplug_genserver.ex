@@ -120,6 +120,7 @@ defmodule RustlerBtleplug.Genserver do
           {:error, reason} ->
             Logger.debug("Failed to start scan: #{reason}")
             {:noreply, state}
+
           _central_ref ->
             Logger.debug("Scan Started.")
             Process.sleep(1000)
@@ -142,6 +143,7 @@ defmodule RustlerBtleplug.Genserver do
           {:error, reason} ->
             Logger.debug("Failed to stop scan: #{reason}")
             {:noreply, state}
+
           _central_ref ->
             Logger.debug("Scan Stopped.")
             {:noreply, state}
@@ -149,12 +151,11 @@ defmodule RustlerBtleplug.Genserver do
     end
   end
 
-
-
   def handle_call({:create_central}, _from, state) do
     case RustlerBtleplug.Native.create_central() do
       {:error, reason} ->
         {:error, reason}
+
       central_ref ->
         GenServer.cast(@name, {:set_central, central_ref})
         Logger.debug("Central Created and Reference Stored!")
@@ -173,6 +174,7 @@ defmodule RustlerBtleplug.Genserver do
           {:error, reason} ->
             Logger.debug("Failed to find #{device_name}: #{reason}")
             {:noreply, state}
+
           peripheral_ref ->
             Logger.debug("Peripheral #{device_name} found #{inspect(peripheral_ref)}")
             {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
@@ -191,6 +193,7 @@ defmodule RustlerBtleplug.Genserver do
           {:error, reason} ->
             Logger.debug("Failed to connect to #{inspect(peripheral_ref)}: #{reason}")
             {:noreply, state}
+
           peripheral_ref ->
             Logger.debug("Connecting to #{inspect(peripheral_ref)}")
             {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
@@ -209,6 +212,7 @@ defmodule RustlerBtleplug.Genserver do
           {:error, reason} ->
             Logger.debug("Failed to subscribe to #{uuid}: #{reason}")
             {:noreply, state}
+
           peripheral_ref ->
             Logger.debug("Subscribing to #{uuid} #{inspect(peripheral_ref)}")
             {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}

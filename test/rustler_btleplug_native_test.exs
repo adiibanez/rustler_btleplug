@@ -136,13 +136,13 @@ defmodule RustlerBtleplug.NativeTest do
     timeout = 5000
 
     central_resource =
-      Native.create_central()
-      |> Native.start_scan()
+      Native.create_central() |> dbg()
+      |> Native.start_scan() |> dbg()
 
     assert is_reference(central_resource)
     assert_receive {:btleplug_scan_started, _msg}, 1000
 
-    Process.sleep(2000)
+    Process.sleep(1000)
 
     receive do
       {:btleplug_peripheral_discovered, peripheral_id} ->
@@ -151,11 +151,11 @@ defmodule RustlerBtleplug.NativeTest do
         IO.puts("Found peripheral: #{peripheral_id}")
 
         peripheral_resource =
-          central_resource
-          |> Native.start_scan()
-          |> Native.find_peripheral_by_name(@ble_peripheral_name)
-          |> Native.connect()
-          |> Native.subscribe(@ble_characteristic_uuid)
+          central_resource  |> dbg()
+          #|> Native.start_scan()
+          |> Native.find_peripheral_by_name(@ble_peripheral_name) |> dbg()
+          |> Native.connect() |> dbg()
+          |> Native.subscribe(@ble_characteristic_uuid) |> dbg()
 
         assert is_reference(peripheral_resource)
 
@@ -182,6 +182,9 @@ defmodule RustlerBtleplug.NativeTest do
       timeout * 2 -> flunk("Did not receive :btleplug_peripheral_discovered message")
     end
   end
+
+
+
 
   # @tag timeout: :infinity
   # test "Create GATT peripheral" do

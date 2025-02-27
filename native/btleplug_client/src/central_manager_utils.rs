@@ -1,24 +1,18 @@
 
-use crate::atoms;
 
 use crate::central_manager_state::CentralRef;
-use crate::central_manager_state::CentralManagerState;
 
-use log::{debug, info, warn};
-use rustler::{Encoder, Term, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc};
+use rustler::{Encoder, Term, Env, Error as RustlerError, ResourceArc};
 use std::collections::HashMap;
  
 use btleplug::api::{
-    Central, CentralEvent, Manager as _, Peripheral, ScanFilter,
+    Central, Peripheral,
 };
-use btleplug::platform::Manager;
-use futures::StreamExt;
+
+use log::{debug, info, warn};
 
 use crate::RUNTIME;
-use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc;
-use tokio::sync::RwLock;
-use tokio::time::{sleep, Duration};
+use std::sync::Arc;
 
 
 use serde_json::{Map, Value};
@@ -65,39 +59,30 @@ pub fn debug_properties(properties: &PeripheralProperties) {
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
 
-    println!("🔍 **Discovered Peripheral:**");
-    println!("   📛 Name: {:?}", local_name);
-    println!("   🔢 Address: {:?}", address);
-    println!("   🏷  Address Type: {:?}", address_type);
-    println!("   📡 TX Power Level: {:?}", tx_power_level);
-    println!("   📶 RSSI: {:?}", rssi);
-    println!("   Services: {:?}", services);
+    debug!("🔍 **Discovered Peripheral:**");
+    debug!("   📛 Name: {:?}", local_name);
+    debug!("   🔢 Address: {:?}", address);
+    debug!("   🏷  Address Type: {:?}", address_type);
+    debug!("   📡 TX Power Level: {:?}", tx_power_level);
+    debug!("   📶 RSSI: {:?}", rssi);
+    debug!("   Services: {:?}", services);
 
     if !manufacturer_data.is_empty() {
-        println!("   🏭 Manufacturer Data:");
+        debug!("   🏭 Manufacturer Data:");
         for (id, data) in manufacturer_data.iter() {
-            println!("     - ID {}: {:?}", id, data);
+            debug!("     - ID {}: {:?}", id, data);
         }
     }
 
     if !service_data.is_empty() {
-        println!("   🔗 Service Data:");
+        debug!("   🔗 Service Data:");
         for (uuid, data) in service_data.iter() {
-            println!("     - UUID {}: {:?}", uuid, data);
+            debug!("     - UUID {}: {:?}", uuid, data);
         }
     }
 }
 
-
-
 #[rustler::nif]
-fn get_map() -> Result<HashMap<String, HashMap<String, String>>, RustlerError> {
-    let mut map = HashMap::new();
-    Ok(map)
-}
-
-
-#[rustler::nif(schedule = "DirtyIo")]
 pub fn get_adapter_state_graph(
     env: Env<'_>,
     resource: ResourceArc<CentralRef>,
@@ -122,11 +107,6 @@ pub fn get_adapter_state_graph(
         Err(_) => Err(RustlerError::Term(Box::new("Failed to retrieve adapter state graph"))),
     }
 }
-
-
-
-
-
 
 
 pub fn properties_to_map<'a>(env: Env<'a>, props: &PeripheralProperties) -> Term<'a> {
@@ -270,14 +250,27 @@ pub async fn adapter_state_to_mermaid(adapter: &Adapter) -> String {
     let peripherals = adapter.peripherals().await.unwrap_or_default();
     for peripheral in peripherals.iter() {
         let peripheral_id = peripheral.id().to_string();
-        let peripheral_name = match peripheral.properties().await {
-            Ok(Some(props)) => props.local_name.unwrap_or(peripheral_id.clone()),
-            _ => peripheral_id.clone(),
+
+        // 🔍 Get peripheral properties
+        let properties = match get_peripheral_properties(adapter, &peripheral_id).await {
+            Some((_, props)) => props,
+            None => continue, // Skip if no properties found
         };
 
+        let peripheral_name = properties.local_name.unwrap_or_else(|| peripheral_id.clone());
+        let rssi_display = properties
+            .rssi
+            .map(|rssi| format!("RSSI: {}dBm", rssi))
+            .unwrap_or_else(|| "RSSI: N/A".to_string());
+
+        let tx_power_display = properties
+            .tx_power_level
+            .map(|tx| format!("TX Power: {}dBm", tx))
+            .unwrap_or_else(|| "TX Power: N/A".to_string());
+
         output.push_str(&format!(
-            "    Adapter --> {}[\"Peripheral: {}\"]\n",
-            peripheral_id, peripheral_name
+            "    Adapter --> {}[\"Peripheral: {}<br>{}<br>{}\"]\n",
+            peripheral_id, peripheral_name, rssi_display, tx_power_display
         ));
 
         // 3️⃣ Fetch Services
@@ -295,13 +288,17 @@ pub async fn adapter_state_to_mermaid(adapter: &Adapter) -> String {
                 let char_id = char.uuid.to_string();
                 let char_flags = format!(
                     "({})",
-                    if char_props.contains(CharPropFlags::NOTIFY) {
-                        "Notify"
-                    } else if char_props.contains(CharPropFlags::READ) {
-                        "Read"
-                    } else {
-                        "Unknown"
-                    }
+                    [
+                        if char_props.contains(CharPropFlags::READ) { "Read" } else { "" },
+                        if char_props.contains(CharPropFlags::WRITE) { "Write" } else { "" },
+                        if char_props.contains(CharPropFlags::NOTIFY) { "Notify" } else { "" },
+                        if char_props.contains(CharPropFlags::INDICATE) { "Indicate" } else { "" },
+                    ]
+                    .iter()
+                    .filter(|s| !s.is_empty())
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
                 );
 
                 output.push_str(&format!(
@@ -314,4 +311,3 @@ pub async fn adapter_state_to_mermaid(adapter: &Adapter) -> String {
 
     output
 }
-

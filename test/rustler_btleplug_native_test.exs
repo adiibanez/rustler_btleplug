@@ -178,6 +178,9 @@ defmodule RustlerBtleplug.NativeTest do
 
         Process.sleep(1000)
 
+        state_graph = central_resource |> Native.get_adapter_state_graph()
+        IO.puts(inspect(state_graph))
+
         # messages = :erlang.process_info(self(), :messages)
         # IO.inspect(messages, label: "messages")
     after

@@ -1,25 +1,18 @@
-use crate::atoms;
 use crate::peripheral::PeripheralRef;
 use crate::peripheral::PeripheralState;
 
 use crate::central_manager_state::*;
 
-use log::{debug, info, warn};
-use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
-use serde_json::{Map, Value};
-use std::collections::HashMap;
-use std::iter::FromIterator; 
+use log::{info, warn};
+use rustler::{Env, Error as RustlerError, ResourceArc};
+ 
 use btleplug::api::{
-    CharPropFlags, Central, CentralEvent, Manager as _, Peripheral, PeripheralProperties, ScanFilter,
+    Central, Peripheral,
 };
-use btleplug::platform::{Adapter, Manager};
-use futures::StreamExt;
 
 use crate::RUNTIME;
 use std::sync::{Arc, Mutex};
-use tokio::sync::mpsc;
-use tokio::sync::RwLock;
-use tokio::time::{sleep, timeout, Duration};
+use tokio::time::{timeout, Duration};
 
 
 #[rustler::nif(schedule = "DirtyIo")]

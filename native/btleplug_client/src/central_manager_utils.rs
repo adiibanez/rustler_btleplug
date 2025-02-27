@@ -1,25 +1,35 @@
-use crate::atoms;
-use crate::peripheral::PeripheralRef;
-use crate::peripheral::PeripheralState;
 
-use crate::central_manager_state::*;
+use crate::atoms;
+
+use crate::central_manager_state::CentralRef;
+use crate::central_manager_state::CentralManagerState;
 
 use log::{debug, info, warn};
-use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
-use serde_json::{Map, Value};
+use rustler::{Encoder, Term, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc};
 use std::collections::HashMap;
-use std::iter::FromIterator; 
+ 
 use btleplug::api::{
-    CharPropFlags, Central, CentralEvent, Manager as _, Peripheral, PeripheralProperties, ScanFilter,
+    Central, CentralEvent, Manager as _, Peripheral, ScanFilter,
 };
-use btleplug::platform::{Adapter, Manager};
+use btleplug::platform::Manager;
 use futures::StreamExt;
 
 use crate::RUNTIME;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use tokio::time::{sleep, timeout, Duration};
+use tokio::time::{sleep, Duration};
+
+
+use serde_json::{Map, Value};
+
+use std::iter::FromIterator; 
+use btleplug::api::{
+    CharPropFlags, PeripheralProperties,
+};
+
+use btleplug::platform::Adapter;
+
 
 pub async fn get_peripheral_properties(
     adapter: &Adapter,
@@ -77,6 +87,47 @@ pub fn debug_properties(properties: &PeripheralProperties) {
         }
     }
 }
+
+
+
+#[rustler::nif]
+fn get_map() -> Result<HashMap<String, HashMap<String, String>>, RustlerError> {
+    let mut map = HashMap::new();
+    Ok(map)
+}
+
+
+#[rustler::nif(schedule = "DirtyIo")]
+pub fn get_adapter_state_graph(
+    env: Env<'_>,
+    resource: ResourceArc<CentralRef>,
+) -> Result<Term<'_>, RustlerError> {
+    let env_pid = env.pid();
+    let resource_arc = resource.0.clone();
+    
+    let (adapter, _pid) = {
+        let central_state = resource_arc.lock().unwrap();
+        (central_state.adapter.clone(), central_state.pid)
+    };
+
+    let (tx, rx) = tokio::sync::oneshot::channel();
+
+    RUNTIME.spawn(async move {
+        let state_graph = adapter_state_to_mermaid(&adapter).await;
+        let _ = tx.send(state_graph);
+    });
+
+    match rx.blocking_recv() {
+        Ok(graph) => Ok(graph.encode(env)),
+        Err(_) => Err(RustlerError::Term(Box::new("Failed to retrieve adapter state graph"))),
+    }
+}
+
+
+
+
+
+
 
 pub fn properties_to_map<'a>(env: Env<'a>, props: &PeripheralProperties) -> Term<'a> {
     let mut map = HashMap::new();

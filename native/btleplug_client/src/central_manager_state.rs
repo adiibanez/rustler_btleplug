@@ -1,24 +1,14 @@
-use crate::atoms;
 use crate::peripheral::PeripheralRef;
-use crate::peripheral::PeripheralState;
 
-use log::{debug, info, warn};
-use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, Resource, ResourceArc, Term};
-use rustler::{NifStruct, NifUnitEnum};
-use serde_json::{Map, Value};
+use rustler::{LocalPid, ResourceArc};
 use std::collections::HashMap;
-use std::iter::FromIterator; 
-use btleplug::api::{
-    CharPropFlags, Central, CentralEvent, Manager as _, Peripheral, PeripheralProperties, ScanFilter,
-};
+ 
+use btleplug::api::CentralEvent;
 use btleplug::platform::{Adapter, Manager};
-use futures::StreamExt;
 
-use crate::RUNTIME;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use tokio::time::{sleep, timeout, Duration};
 
 pub struct CentralRef(pub(crate) Arc<Mutex<CentralManagerState>>);
 

@@ -1,29 +1,26 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 use crate::atoms;
-use crate::peripheral::PeripheralRef;
-use crate::peripheral::PeripheralState;
 
 use crate::central_manager_state::CentralRef;
 use crate::central_manager_state::CentralManagerState;
 use crate::central_manager_utils::*;
 
 use log::{debug, info, warn};
-use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
-use serde_json::{Map, Value};
+use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc};
 use std::collections::HashMap;
-use std::iter::FromIterator; 
+ 
 use btleplug::api::{
-    CharPropFlags, Central, CentralEvent, Manager as _, Peripheral, PeripheralProperties, ScanFilter,
+    Central, CentralEvent, Manager as _, Peripheral, ScanFilter,
 };
-use btleplug::platform::{Adapter, Manager};
+use btleplug::platform::Manager;
 use futures::StreamExt;
 
 use crate::RUNTIME;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use tokio::time::{sleep, timeout, Duration};
+use tokio::time::{sleep, Duration};
 
 #[rustler::nif]
 pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>, RustlerError> {

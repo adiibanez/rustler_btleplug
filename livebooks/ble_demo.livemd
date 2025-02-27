@@ -19,7 +19,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   use GenServer
   require Logger
 
-  defstruct ble: %{peripheral: nil, central: nil, messages: []} frames: %{}, clients: %{a: [], b: []}
+  defstruct ble: %{peripheral: nil, central: nil, messages: []}, frames: %{}
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: @name)
@@ -54,8 +54,8 @@ defmodule RustlerBtleplug.GenserverLiveBook do
        frames ->
          frames
          |> Map.put_new(:messages, Kino.Frame.new())
-
          |> Map.put_new(:peripherals, Kino.Frame.new(placeholder: true))
+
          # |> Map.put_new(:characteristics, Kino.Frame.new(placeholder: false))
      end)
      |> mount_outer_frame()}
@@ -252,7 +252,6 @@ defmodule RustlerBtleplug.GenserverLiveBook do
     |> Map.put(:ble, %{state.ble | messages: [message | state.ble.messages]})
   end
 end
-
 ```
 
 <!-- livebook:{"reevaluate_automatically":true} -->
@@ -335,4 +334,47 @@ defmodule RustlerBtleplug.Demo do
     # Native.unsubscribe(peripheral, "61d20a90-71a1-11ea-ab12-0800200c9a66")
   end
 end
+```
+
+```elixir
+frame = Kino.Frame.new() |> Kino.render()
+
+# for i <- 1..100 do
+##  Kino.Frame.render(frame, i)
+# Process.sleep(50)
+# end
+
+data = [
+  %{id: 1, name: "Elixir", website: "https://elixir-lang.org"},
+  %{id: 2, name: "Erlang", website: "https://www.erlang.org"}
+]
+
+Kino.DataTable.new(data)
+
+data = Process.info(self())
+Kino.Tree.new(data)
+
+Kino.Mermaid.new("""
+graph TD;
+  A<--B;
+  A-->C;
+  BCC-->D;
+  B-->D;
+  B-->D;
+  C-->D;
+""")
+
+Kino.Mermaid.new("""
+architecture-beta
+group api(cloud)[API]
+
+service db(database)[Database] in api
+service disk1(disk)[Storage] in api
+service disk2(disk)[Storage] in api
+service server(server)[Server] in api
+
+db:L -- R:server
+disk1:T -- B:server
+disk2:T -- B:db
+""")
 ```

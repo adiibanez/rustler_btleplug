@@ -1,6 +1,6 @@
 // #![allow(unused_imports)]
-// #![allow(dead_code)]
-//#![allow(unused_variables)]
+ #![allow(dead_code)]
+#![allow(unused_variables)]
 // #![allow(deprecated)]
 #![allow(unused_must_use)]
 #![allow(non_local_definitions)]

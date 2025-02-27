@@ -1,5 +1,5 @@
 defmodule RustlerBtleplug.NativeTest do
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   alias RustlerBtleplug.Native
 
   @ble_peripheral_name "Pressure"
@@ -42,7 +42,7 @@ defmodule RustlerBtleplug.NativeTest do
     Process.sleep(1000)
 
     assert_receive {:btleplug_scan_started, _msg}
-    assert_receive {:btleplug_peripheral_discovered, _msg}
+    assert_receive {:btleplug_peripheral_discovered, _msg, _props}
 
     assert_receive {:btleplug_scan_stopped, _msg}
 
@@ -61,7 +61,7 @@ defmodule RustlerBtleplug.NativeTest do
     assert_receive {:btleplug_scan_started, _msg}
 
     receive do
-      {:btleplug_peripheral_discovered, _msg} -> :ok
+      {:btleplug_peripheral_discovered, _msg, _props} -> :ok
     after
       500 -> flunk("Did not receive :btleplug_peripheral_discovered message")
     end
@@ -89,7 +89,7 @@ defmodule RustlerBtleplug.NativeTest do
     IO.inspect(messages, label: "messages")
 
     receive do
-      {:btleplug_peripheral_discovered, _msg} ->
+      {:btleplug_peripheral_discovered, _msg, _props} ->
         :ok
         refute_receive {:btleplug_scan_stopped, _msg}
     after
@@ -105,7 +105,7 @@ defmodule RustlerBtleplug.NativeTest do
       |> Native.find_peripheral("uuid_1234")
 
     assert status == :error
-    assert msg == "Peripheral not found"
+    assert String.contains?(msg, "Peripheral not found")
   end
 
   test "BLE find known peripheral" do
@@ -118,7 +118,7 @@ defmodule RustlerBtleplug.NativeTest do
     assert_receive {:btleplug_scan_started, _msg}
 
     receive do
-      {:btleplug_peripheral_discovered, peripheral_id} ->
+      {:btleplug_peripheral_discovered, peripheral_id, properties} ->
         :ok
 
         peripheral_resource =
@@ -126,7 +126,9 @@ defmodule RustlerBtleplug.NativeTest do
           |> Native.stop_scan()
           |> Native.find_peripheral(peripheral_id)
 
+        assert is_binary(peripheral_id)
         assert is_reference(peripheral_resource)
+        assert is_map(properties)
     after
       2000 -> flunk("Did not receive :btleplug_peripheral_discovered message")
     end
@@ -136,8 +138,8 @@ defmodule RustlerBtleplug.NativeTest do
     timeout = 5000
 
     central_resource =
-      Native.create_central() |> dbg()
-      |> Native.start_scan() |> dbg()
+      Native.create_central()
+      |> Native.start_scan()
 
     assert is_reference(central_resource)
     assert_receive {:btleplug_scan_started, _msg}, 1000
@@ -145,27 +147,27 @@ defmodule RustlerBtleplug.NativeTest do
     Process.sleep(1000)
 
     receive do
-      {:btleplug_peripheral_discovered, peripheral_id} ->
+      {:btleplug_peripheral_discovered, peripheral_id, _props} ->
         :ok
 
         IO.puts("Found peripheral: #{peripheral_id}")
 
         peripheral_resource =
-          central_resource  |> dbg()
+          central_resource
           #|> Native.start_scan()
-          |> Native.find_peripheral_by_name(@ble_peripheral_name) |> dbg()
-          |> Native.connect() |> dbg()
-          |> Native.subscribe(@ble_characteristic_uuid) |> dbg()
+          |> Native.find_peripheral_by_name(@ble_peripheral_name)
+          |> Native.connect()
+          |> Native.subscribe(@ble_characteristic_uuid)
 
         assert is_reference(peripheral_resource)
-
-        assert_receive {:btleplug_peripheral_updated, _msg},
-                       timeout,
-                       "No :btleplug_peripheral_updated received"
-
         assert_receive {:btleplug_peripheral_connected, _msg},
                        timeout,
                        "No :btleplug_peripheral_connected received"
+
+        assert_receive {:btleplug_peripheral_updated, _msg, properties},
+                       timeout,
+                       "No :btleplug_peripheral_updated received"
+                       assert is_map(properties)
 
         # assert_receive {:btleplug_services_advertisement, _msg}, timeout, "No :btleplug_services_advertisement received"
         # assert_receive {:btleplug_service_data_advertisement, _msg}, timeout, "No :btleplug_service_data_advertisement received"

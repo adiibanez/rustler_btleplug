@@ -53,9 +53,8 @@ defmodule RustlerBtleplug.Native do
   # get peripheral from known peripherals, eg. earlier scan
   # def get_peripheral(_central, _uuid), do: error()
 
-  # scan and find peripheral
-  #@spec find_peripheral(central(), uuid(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
-  #def find_peripheral(_central, _uuid, _timeout \\ @default_timeout), do: error()
+  @spec find_peripheral(central(), uuid(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
+  def find_peripheral(_central, _uuid, _timeout \\ @default_timeout), do: error()
 
   @spec find_peripheral_by_name(central(), String.t(), Number.t()) ::
           {:ok, peripheral()} | {:error, term()}

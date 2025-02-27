@@ -4,9 +4,11 @@ use crate::atoms;
 use crate::peripheral::PeripheralRef;
 use crate::peripheral::PeripheralState;
 use log::{debug, info, warn};
-use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc};
+use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc, Term};
 
-use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral, ScanFilter};
+use btleplug::api::{
+    Central, CentralEvent, Manager as _, Peripheral, PeripheralProperties, ScanFilter,
+};
 use btleplug::platform::{Adapter, Manager};
 use futures::StreamExt;
 
@@ -48,6 +50,22 @@ impl CentralManagerState {
     }
 }
 
+async fn get_peripheral_properties(
+    adapter: &Adapter,
+    target_id: &str,
+) -> Option<(Arc<btleplug::platform::Peripheral>, PeripheralProperties)> {
+    if let Ok(peripherals) = adapter.peripherals().await {
+        for peripheral in peripherals.iter() {
+            if peripheral.id().to_string() == target_id {
+                if let Ok(Some(properties)) = peripheral.properties().await {
+                    return Some((Arc::new(peripheral.clone()), properties));
+                }
+            }
+        }
+    }
+    None
+}
+
 #[rustler::nif]
 pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>, RustlerError> {
     info!("Creating CentralManager... {:?}", pid.as_c_arg());
@@ -65,6 +83,7 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
     }
 
     let adapter = adapters.into_iter().next().unwrap();
+    let adapter_clone = adapter.clone();
     let adapter_info = RUNTIME.block_on(adapter.adapter_info());
     info!("Adapter initialized: {:?}", adapter_info);
 
@@ -108,16 +127,38 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
             match event {
                 CentralEvent::DeviceDiscovered(id) => {
                     let uuid = id.to_string();
-                    info!("Device discovered - UUID: {}", uuid);
-                    match msg_env.send_and_clear(&pid, |env| {
-                        (atoms::btleplug_peripheral_discovered(), uuid).encode(env)
-                    }) {
-                        Ok(_) => debug!("Successfully sent device discovery message"),
-                        Err(e) => debug!(
-                            "Failed to send device discovery message (Error: {:?}). \
-                    This might happen if the Elixir process has terminated.",
-                            e
-                        ),
+                    info!("🔍 Device discovered - UUID: {}", uuid);
+
+                    if let Some((peripheral, properties)) =
+                        get_peripheral_properties(&adapter_clone, &uuid).await
+                    {
+                        let is_connected = peripheral.is_connected().await.unwrap_or(false);
+                        debug!(
+                            "🔍 Peripheral: {:?}, Connected: {:?}",
+                            properties.local_name, is_connected
+                        );
+                        debug_properties(&properties);
+
+                        match msg_env.send_and_clear(&pid, |env| {
+                            (
+                                atoms::btleplug_peripheral_discovered(),
+                                uuid,
+                                properties_to_map(env, &properties),
+                            )
+                                .encode(env)
+                        }) {
+                            Ok(_) => debug!("✅ Successfully sent device discovery message"),
+                            Err(e) => debug!(
+                                "⚠️ Failed to send device discovery message (Error: {:?}). \
+                This might happen if the Elixir process has terminated.",
+                                e
+                            ),
+                        }
+                    } else {
+                        warn!(
+                            "❌ Could not retrieve properties for discovered peripheral: {}",
+                            uuid
+                        );
                     }
                 }
                 CentralEvent::DeviceConnected(id) => {
@@ -236,15 +277,38 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                 CentralEvent::DeviceUpdated(id) => {
                     let uuid = id.to_string();
                     debug!("Device updated - UUID: {}", uuid);
-                    match msg_env.send_and_clear(&pid, |env| {
-                        (atoms::btleplug_peripheral_updated(), uuid).encode(env)
-                    }) {
-                        Ok(_) => debug!("Successfully sent device updated message"),
-                        Err(e) => debug!(
-                            "Failed to send device updated message (Error: {:?}). \
-                    This might happen if the Elixir process has terminated.",
-                            e
-                        ),
+
+                    if let Some((peripheral, properties)) =
+                        get_peripheral_properties(&adapter_clone, &uuid).await
+                    {
+                        let is_connected = peripheral.is_connected().await.unwrap_or(false);
+                        debug!(
+                            "🔍 Peripheral Updated: {:?}: is_connected: {:?}",
+                            properties.local_name, is_connected
+                        );
+                        
+                        debug_properties(&properties);
+
+                        match msg_env.send_and_clear(&pid, |env| {
+                            (
+                                atoms::btleplug_peripheral_updated(),
+                                uuid,
+                                properties_to_map(env, &properties),
+                            )
+                                .encode(env)
+                        }) {
+                            Ok(_) => debug!("✅ Successfully sent device discovery message"),
+                            Err(e) => debug!(
+                                "⚠️ Failed to send device discovery message (Error: {:?}). \
+                This might happen if the Elixir process has terminated.",
+                                e
+                            ),
+                        }
+                    } else {
+                        warn!(
+                            "❌ Could not retrieve properties for discovered peripheral: {}",
+                            uuid
+                        );
                     }
                 } // _ => {
                   //     debug!("Other event: {:?}", event);
@@ -255,6 +319,101 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
     });
 
     Ok(resource)
+}
+
+pub fn debug_properties<'a>(properties: &PeripheralProperties) {
+    let local_name = properties.local_name.as_deref().unwrap_or("(unknown)");
+    let address = properties.address;
+    let address_type = properties
+        .address_type
+        .map_or("Unknown".to_string(), |at| format!("{:?}", at));
+    let tx_power_level = properties
+        .tx_power_level
+        .map_or("N/A".to_string(), |tx| tx.to_string());
+    let rssi = properties.rssi.map_or("N/A".to_string(), |r| r.to_string());
+    let manufacturer_data = properties.manufacturer_data.clone();
+    let service_data = properties.service_data.clone();
+    let services = properties.services.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+
+    println!("🔍 **Discovered Peripheral:**");
+    println!("   📛 Name: {:?}", local_name);
+    println!("   🔢 Address: {:?}", address);
+    println!("   🏷  Address Type: {:?}", address_type);
+    println!("   📡 TX Power Level: {:?}", tx_power_level);
+    println!("   📶 RSSI: {:?}", rssi);
+    println!("   Services: {:?}", services);
+
+    if !manufacturer_data.is_empty() {
+        println!("   🏭 Manufacturer Data:");
+        for (id, data) in manufacturer_data.iter() {
+            println!("     - ID {}: {:?}", id, data);
+        }
+    }
+
+    if !service_data.is_empty() {
+        println!("   🔗 Service Data:");
+        for (uuid, data) in service_data.iter() {
+            println!("     - UUID {}: {:?}", uuid, data);
+        }
+    }
+}
+
+pub fn properties_to_map<'a>(env: Env<'a>, props: &PeripheralProperties) -> Term<'a> {
+    let mut map = HashMap::new();
+
+    map.insert("address", props.address.to_string().encode(env));
+    map.insert(
+        "address_type",
+        props
+            .address_type
+            .map(|at| format!("{:?}", at))
+            .unwrap_or_else(|| "Unknown".to_string())
+            .encode(env),
+    );
+    map.insert(
+        "local_name",
+        props
+            .local_name
+            .as_deref()
+            .unwrap_or("(unknown)")
+            .encode(env),
+    );
+    map.insert(
+        "tx_power_level",
+        props
+            .tx_power_level
+            .map_or("N/A".into(), |tx| tx.to_string())
+            .encode(env),
+    );
+    map.insert(
+        "rssi",
+        props
+            .rssi
+            .map_or("N/A".into(), |r| r.to_string())
+            .encode(env),
+    );
+
+    // Convert manufacturer data
+    let manufacturer_data: HashMap<String, Vec<u8>> = props
+        .manufacturer_data
+        .iter()
+        .map(|(id, data)| (id.to_string(), data.clone()))
+        .collect();
+    map.insert("manufacturer_data", manufacturer_data.encode(env));
+
+    // Convert service data
+    let service_data: HashMap<String, Vec<u8>> = props
+        .service_data
+        .iter()
+        .map(|(uuid, data)| (uuid.to_string(), data.clone()))
+        .collect();
+    map.insert("service_data", service_data.encode(env));
+
+    // Convert services to a list of UUID strings
+    let services: Vec<String> = props.services.iter().map(|s| s.to_string()).collect();
+    map.insert("services", services.encode(env));
+
+    map.encode(env)
 }
 
 #[rustler::nif]
@@ -453,6 +612,103 @@ pub fn find_peripheral_by_name(
         }
 
         let _ = tx.send(Err("Peripheral not found".to_string()));
+    });
+
+    match rx.blocking_recv() {
+        Ok(Ok(result)) => Ok(result),
+        Ok(Err(err_msg)) => Err(RustlerError::Term(Box::new(format!("{:?}", err_msg)))),
+        Err(_) => Err(RustlerError::Term(Box::new(
+            "Failed to retrieve result".to_string(),
+        ))),
+    }
+}
+
+
+#[rustler::nif(schedule = "DirtyIo")]
+pub fn find_peripheral(
+    env: Env,
+    resource: ResourceArc<CentralRef>,
+    uuid: String,
+    timeout_ms: u64,
+) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
+    let env_pid = env.pid();
+    let (tx, rx) = tokio::sync::oneshot::channel::<Result<ResourceArc<PeripheralRef>, String>>();
+
+    let resource_arc = resource.0.clone();
+    let (adapter, pid, discovered_peripherals, event_receiver) = {
+        let central_state = resource_arc.lock().unwrap();
+        (
+            central_state.adapter.clone(),
+            central_state.pid,
+            central_state.discovered_peripherals.clone(),
+            central_state.event_receiver.clone(),
+        )
+    };
+
+    let uuid_clone = uuid.clone();
+    let discovered_peripherals_clone = discovered_peripherals.clone();
+
+    RUNTIME.spawn(async move {
+        info!(
+            "🔍 Looking for peripheral with UUID: {}, caller pid: {:?}, state pid: {:?}",
+            uuid_clone,
+            env_pid.as_c_arg(),
+            pid.as_c_arg()
+        );
+
+        // **Step 1: Check Cache First**
+        {
+            let cache = discovered_peripherals_clone.lock().unwrap();
+            if let Some(cached_peripheral) = cache.get(&uuid_clone) {
+                info!("✅ Found cached PeripheralRef by UUID: {}", uuid_clone);
+                let _ = tx.send(Ok(cached_peripheral.clone()));
+                return;
+            }
+        }
+
+        // **Step 2: Scan for new peripherals**
+        let peripherals =
+            match timeout(Duration::from_millis(timeout_ms), adapter.peripherals()).await {
+                Ok(Ok(peripherals)) => peripherals,
+                Ok(Err(e)) => {
+                    warn!("❌ Failed to get peripherals: {:?}", e);
+                    let _ = tx.send(Err(format!("Failed to get peripherals: {}", e)));
+                    return;
+                }
+                Err(_) => {
+                    warn!("⏳ Timeout while fetching peripherals");
+                    let _ = tx.send(Err("Timeout while fetching peripherals".to_string()));
+                    return;
+                }
+            };
+
+        for peripheral in peripherals {
+            if peripheral.id().to_string() == uuid_clone {
+                let peripheral_state = PeripheralState::new(
+                    pid,
+                    Arc::new(peripheral.clone()),
+                    event_receiver.clone(),
+                );
+                let peripheral_ref =
+                    ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(peripheral_state))));
+
+                info!(
+                    "✅ Storing PeripheralRef in cache: {:?} (Peripheral Ptr: {:p})",
+                    peripheral.id(),
+                    Arc::as_ptr(&peripheral_ref.0)
+                );
+
+                discovered_peripherals_clone
+                    .lock()
+                    .unwrap()
+                    .insert(peripheral.id().to_string(), peripheral_ref.clone());
+
+                let _ = tx.send(Ok(peripheral_ref.clone()));
+                return;
+            }
+        }
+
+        let _ = tx.send(Err(format!("Peripheral not found with UUID: {}", uuid_clone)));
     });
 
     match rx.blocking_recv() {

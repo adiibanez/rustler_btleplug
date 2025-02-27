@@ -19,7 +19,13 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   use GenServer
   require Logger
 
-  defstruct peripheral: nil, central: nil, messages: [], datatable: nil, graph: nil
+  defstruct peripheral: nil,
+            central: nil,
+            ble_messages: [],
+            datatable: nil,
+            graph: nil,
+            frame: nil,
+            layout: nil
 
   def start_link(_opts) do
     GenServer.start_link(__MODULE__, %{}, name: @name)
@@ -42,115 +48,151 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   def handle_continue(_, _state) do
+    datatable = Kino.DataTable.new([])
+
+    graph =
+      Kino.Mermaid.new("""
+      Adapter["Adapter: CoreBluetooth"]
+      """)
+
+    layout = Kino.Layout.grid([datatable, graph])
+    # frame = Kino.Frame.new(Kino.Layout.grid([datatable, graph])) |> Kino.render()
+
     {:noreply,
      %{
        central: nil,
        peripheral: nil,
-       messages: [],
-       datatable: Kino.DataTable.new([]),
-       graph: nil
+       ble_messages: [],
+       datatable: datatable,
+       graph: graph,
+       # frame: Kino.Frame.new() |> Kino.Frame.render(Kino.Layout.grid([datatable, graph])),
+       frame: Kino.Frame.new() |> Kino.render(),
+       layout: layout
      }}
   end
 
+  def update_state_with_message(state, msg) do
+    new_state = %{state | ble_messages: Enum.take([msg | state.ble_messages], 100)}
+    graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central)
+
+    graph = Kino.Mermaid.new(graphviz_str)
+    # graphviz_str = String.replace(graphviz_str, "graph TD", "flowchart TD")
+    # graphviz_str = String.replace(graphviz_str, '<br\>', '')
+
+    # IO.puts(graphviz_str)
+
+    # IO.puts(graphviz_str)
+    datatable = Kino.DataTable.update(state.datatable, new_state.ble_messages)
+
+    # graph = Kino.Mermaid.new("""
+    # graph = Kino.Mermaid.new("""
+    ## {graphviz_str}
+    # """)
+
+    frame =
+      Kino.Frame.render(
+        state.frame,
+        Kino.Layout.grid([datatable, graph])
+      )
+
+    new_state
+    |> Map.put(:datatable, datatable)
+    |> Map.put(:graph, graph)
+    |> Map.put(:frame, frame)
+
+    Kino.render(frame)
+
+    new_state
+  end
+
   def handle_info({:btleplug_scan_started, msg}, state) do
-    # IO.puts("handle_info :btleplug_scan_started #{inspect(msg)}")
-    new_state = %{
-      state
-      | messages: [
-          %{type: "btleplug_scan_started", uuid: "", payload: Kino.inspect(msg)}
-          | state.ble.messages
-        ]
-    }
-
-    IO.puts("here #{inspect(new_state)}")
-    # {:noreply, state}
-
-    {:noreply, new_state}
+    # {:noreply, update_state_with_message(state, %{type: "btleplug_scan_started", uuid: "", payload: msg})}
+    {:noreply,
+     update_state_with_message(state, %{type: "btleplug_scan_started", uuid: "", payload: msg})}
   end
 
   def handle_info({:btleplug_peripheral_discovered, uuid, props}, state) do
     # %{"address" => address, "address_type" => address, "local_name" => local_name, "manufacturer_data" => manufacturer_data, "rssi" => rssi, "service_data" => service_data, "services" => services, "tx_power_level" => tx_power_level}
-    # IO.puts("handle_info :btleplug_peripheral_discovered #{uuid} #{inspect(props)}")
     {:noreply,
-     %{
-       state
-       | messages: [
-           %{type: "btleplug_peripheral_discovered", uuid: uuid, payload: Kino.inspect(props)}
-           | state.ble.messages
-         ]
-     }}
+     update_state_with_message(state, %{
+       type: "btleplug_peripheral_discovered",
+       uuid: uuid,
+       payload: props
+     })}
+  end
+
+  def handle_info({:btleplug_peripheral_connected, uuid}, state) do
+    # %{"address" => address, "address_type" => address, "local_name" => local_name, "manufacturer_data" => manufacturer_data, "rssi" => rssi, "service_data" => service_data, "services" => services, "tx_power_level" => tx_power_level}
+    {:noreply,
+     update_state_with_message(state, %{
+       type: "btleplug_peripheral_connected",
+       uuid: uuid,
+       payload: ""
+     })}
   end
 
   def handle_info({:btleplug_services_advertisement, {uuid, services}}, state) do
-    # IO.puts("handle_info :btleplug_services_advertisement #{uuid} #{inspect(services)}")
     {:noreply,
-     %{
-       state
-       | messages: [
-           %{type: "btleplug_services_advertisement", uuid: uuid, payload: Kino.inspect(services)}
-           | state.ble.messages
-         ]
-     }}
+     update_state_with_message(state, %{
+       type: "btleplug_services_advertisement",
+       uuid: uuid,
+       payload: services
+     })}
   end
 
   def handle_info({:btleplug_service_data_advertisement, {uuid, service_data}}, state) do
     # %{"0000fe2c-0000-1000-8000-00805f9b34fb" => [0, 64, 2, 1, 65, 84, 17, 118]}
-    # IO.puts("handle_info :btleplug_service_data_advertisement #{uuid} #{inspect(service_data)}")
     {:noreply,
-     %{
-       state
-       | messages: [
-           %{
-             type: "btleplug_service_data_advertisement",
-             uuid: uuid,
-             payload: Kino.inspect(service_data)
-           }
-           | state.ble.messages
-         ]
-     }}
+     update_state_with_message(state, %{
+       type: "btleplug_service_data_advertisement",
+       uuid: uuid,
+       payload: service_data
+     })}
   end
 
   def handle_info({:btleplug_peripheral_updated, uuid, props}, state) do
     # %{"0000fe2c-0000-1000-8000-00805f9b34fb" => [0, 64, 2, 1, 65, 84, 17, 118]}
-    # IO.puts("handle_info :btleplug_peripheral_updated #{uuid} #{inspect(props)}")
     {:noreply,
-     %{
-       state
-       | messages: [
-           %{type: "btleplug_peripheral_updated", uuid: uuid, payload: Kino.inspect(props)}
-           | state.ble.messages
-         ]
-     }}
+     update_state_with_message(state, %{
+       type: "btleplug_peripheral_updated",
+       uuid: uuid,
+       payload: props
+     })}
   end
 
   def handle_info({:btleplug_manufacturer_data_advertisement, service_data}, state) do
     # {"4a11a274-c1da-c0cb-7005-ca0e81e8278d", %{301 => [4, 0, 2, 2, 176, 49, 6, 1, 206, 216, 225, 241, 217, 16, 2, 0, 51, 0, 0, 0]}  
-    # IO.puts("handle_info :btleplug_manufacturer_data_advertisement #{inspect(service_data)}")
     {:noreply,
-     %{
-       state
-       | messages: [
-           %{
-             type: "btleplug_manufacturer_data_advertisement",
-             uuid: "",
-             payload: Kino.inspect(service_data)
-           }
-           | state.ble.messages
-         ]
-     }}
+     update_state_with_message(state, %{
+       type: "btleplug_manufacturer_data_advertisement",
+       uuid: "",
+       payload: service_data
+     })}
+  end
+
+  def handle_info({:btleplug_characteristic_value_changed, uuid, value_data}, state) do
+    # {:btleplug_characteristic_value_changed, "61d20a90-71a1-11ea-ab12-0800200c9a66", [240, 126, 167, 189]}
+    {:noreply,
+     update_state_with_message(state, %{
+       type: "btleplug_characteristic_value_changed",
+       uuid: uuid,
+       payload: value_data
+     })}
+  end
+
+  def handle_info({:btleplug_peripheral_disconnected, uuid}, state) do
+    {:noreply,
+     update_state_with_message(state, %{
+       type: "btleplug_peripheral_disconnected",
+       uuid: uuid,
+       payload: ""
+     })}
   end
 
   def handle_info({:btleplug_scan_stopped, msg}, state) do
     # IO.puts("handle_info :btleplug_scan_stopped #{inspect(msg)}")
-
     {:noreply,
-     %{
-       state
-       | messages: [
-           %{type: "btleplug_scan_stopped", uuid: "", payload: Kino.inspect(msg)}
-           | state.ble.messages
-         ]
-     }}
+     update_state_with_message(state, %{type: "btleplug_scan_stopped", uuid: "", payload: msg})}
   end
 
   def create_central() do
@@ -158,62 +200,67 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   def start_scan(timeout \\ @default_timeout) do
-    Logger.debug("client :start_scan")
+    # Logger.debug("client :start_scan")
     GenServer.cast(@name, {:start_scan, timeout})
   end
 
   def stop_scan() do
-    Logger.debug("client :stop_scan")
+    # Logger.debug("client :stop_scan")
     GenServer.cast(@name, {:stop_scan})
   end
 
   def find_peripheral_by_name(device_name, timeout \\ @default_timeout) do
-    Logger.debug("client :find_peripheral_by_name #{device_name}")
+    # Logger.debug("client :find_peripheral_by_name #{device_name}")
     GenServer.call(@name, {:find_peripheral_by_name, device_name, timeout})
   end
 
   def connect(timeout \\ @default_timeout) do
-    Logger.debug("client :connect")
+    # Logger.debug("client :connect")
     GenServer.call(@name, {:connect, timeout})
   end
 
+  def disconnect(timeout \\ @default_timeout) do
+    # Logger.debug("client :connect")
+    GenServer.call(@name, {:disconnect, timeout})
+  end
+
   def subscribe(uuid, timeout \\ @default_timeout) do
-    Logger.debug("client :subscribe characteristic uuid: #{uuid}")
+    # Logger.debug("client :subscribe characteristic uuid: #{uuid}")
     GenServer.call(@name, {:subscribe, uuid, timeout})
   end
 
-  def get_messages() do
-    GenServer.call(@name, {:get_messages})
+  def get_ble_messages() do
+    GenServer.call(@name, {:get_ble_messages})
   end
 
   def handle_cast({:set_central, central_ref}, state) do
-    Logger.debug("handle_cast :set_central #{inspect(central_ref)}")
+    # Logger.debug("handle_cast :set_central #{inspect(central_ref)}")
 
     new_state =
       state
       |> Map.put(:central, central_ref)
 
-    Logger.debug("handle_cast :set_central new_state: #{inspect(new_state)}")
+    # Logger.debug("handle_cast :set_central new_state: #{inspect(new_state)}")
     {:noreply, new_state}
   end
 
   def handle_cast({:start_scan, timeout}, state) do
-    Logger.debug("handle_cast :start_scan #{inspect(state)}")
+    # Logger.debug("handle_cast :start_scan #{inspect(state)}")
 
     case state.central do
       nil ->
-        Logger.debug("No central reference to start scan.")
+        # Logger.debug("No central reference to start scan.")
         {:noreply, state}
 
       central_ref ->
         # Call NIF to stop the scan using the central reference
         case RustlerBtleplug.Native.start_scan(central_ref, timeout) do
-          {:error, reason} ->
-            Logger.debug("Failed to start scan: #{reason}")
+          {:error, _reason} ->
+            # Logger.debug("Failed to start scan: #{reason}")
             {:noreply, state}
 
           _central_ref ->
-            Logger.debug("Scan Started.")
+            # Logger.debug("Scan Started.")
             Process.sleep(1000)
             {:noreply, state}
         end
@@ -221,22 +268,22 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   def handle_cast({:stop_scan}, state) do
-    Logger.debug("handle_cast :stop_scan #{inspect(state)}")
+    # Logger.debug("handle_cast :stop_scan #{inspect(state)}")
 
     case state.central do
       nil ->
-        Logger.debug("No central reference to stop scan.")
+        # Logger.debug("No central reference to stop scan.")
         {:noreply, state}
 
       central_ref ->
         # Call NIF to stop the scan using the central reference
         case RustlerBtleplug.Native.stop_scan(central_ref) do
-          {:error, reason} ->
-            Logger.debug("Failed to stop scan: #{reason}")
+          {:error, _reason} ->
+            # Logger.debug("Failed to stop scan: #{reason}")
             {:noreply, state}
 
           _central_ref ->
-            Logger.debug("Scan Stopped.")
+            # Logger.debug("Scan Stopped.")
             {:noreply, state}
         end
     end
@@ -249,7 +296,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 
       central_ref ->
         GenServer.cast(@name, {:set_central, central_ref})
-        Logger.debug("Central Created and Reference Stored!")
+        # Logger.debug("Central Created and Reference Stored!")
         {:reply, {:ok, central_ref}, state}
     end
   end
@@ -257,17 +304,17 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   def handle_call({:find_peripheral_by_name, device_name, timeout}, _from, state) do
     case state.central do
       nil ->
-        Logger.debug("No central reference to find_peripheral_by_name.")
+        # Logger.debug("No central reference to find_peripheral_by_name.")
         {:noreply, state}
 
       central_ref ->
         case RustlerBtleplug.Native.find_peripheral_by_name(central_ref, device_name, timeout) do
-          {:error, reason} ->
-            Logger.debug("Failed to find #{device_name}: #{reason}")
+          {:error, _reason} ->
+            # Logger.debug("Failed to find #{device_name}: #{reason}")
             {:noreply, state}
 
           peripheral_ref ->
-            Logger.debug("Peripheral #{device_name} found #{inspect(peripheral_ref)}")
+            # Logger.debug("Peripheral #{device_name} found #{inspect(peripheral_ref)}")
             {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
         end
     end
@@ -276,18 +323,37 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   def handle_call({:connect, timeout}, _from, state) do
     case state.peripheral do
       nil ->
-        Logger.debug("No peripheral reference to connect.")
+        # Logger.debug("No peripheral reference to connect.")
         {:noreply, state}
 
       peripheral_ref ->
         case RustlerBtleplug.Native.connect(peripheral_ref, timeout) do
-          {:error, reason} ->
-            Logger.debug("Failed to connect to #{inspect(peripheral_ref)}: #{reason}")
+          {:error, _reason} ->
+            # Logger.debug("Failed to connect to #{inspect(peripheral_ref)}: #{reason}")
             {:noreply, state}
 
           peripheral_ref ->
-            Logger.debug("Connecting to #{inspect(peripheral_ref)}")
+            # Logger.debug("Connecting to #{inspect(peripheral_ref)}")
             {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
+        end
+    end
+  end
+
+  def handle_call({:disconnect, timeout}, _from, state) do
+    case state.peripheral do
+      nil ->
+        # Logger.debug("No peripheral reference to connect.")
+        {:noreply, state}
+
+      peripheral_ref ->
+        case RustlerBtleplug.Native.disconnect(peripheral_ref, timeout) do
+          {:error, _reason} ->
+            # Logger.debug("Failed to connect to #{inspect(peripheral_ref)}: #{reason}")
+            {:noreply, state}
+
+          _peripheral_ref ->
+            # Logger.debug("Connecting to #{inspect(peripheral_ref)}")
+            {:reply, :ok, %{state | peripheral: nil}}
         end
     end
   end
@@ -295,25 +361,25 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   def handle_call({:subscribe, uuid, timeout}, _from, state) do
     case state.peripheral do
       nil ->
-        Logger.debug("No peripheral reference to subscribe to.")
+        # Logger.debug("No peripheral reference to subscribe to.")
         {:noreply, state}
 
       peripheral_ref ->
         case RustlerBtleplug.Native.subscribe(peripheral_ref, uuid, timeout) do
-          {:error, reason} ->
-            Logger.debug("Failed to subscribe to #{uuid}: #{reason}")
+          {:error, _reason} ->
+            # Logger.debug("Failed to subscribe to #{uuid}: #{reason}")
             {:noreply, state}
 
           peripheral_ref ->
-            Logger.debug("Subscribing to #{uuid} #{inspect(peripheral_ref)}")
+            # Logger.debug("Subscribing to #{uuid} #{inspect(peripheral_ref)}")
             {:reply, {:ok, peripheral_ref}, %{state | peripheral: peripheral_ref}}
         end
     end
   end
 
-  def handle_call({:get_messages}, _from, state) do
-    Logger.debug("handle_call :get_messages")
-    {:reply, state.messages, state}
+  def handle_call({:get_ble_messages}, _from, state) do
+    # Logger.debug("handle_call :get_ble_messages")
+    {:reply, state.ble_messages, state}
   end
 end
 ```
@@ -361,10 +427,14 @@ Kino.Process.render_seq_trace(self(), fn ->
   RustlerBtleplug.GenserverLiveBook.start_scan(default_timeout)
   Process.sleep(1000)
   RustlerBtleplug.GenserverLiveBook.find_peripheral_by_name(ble_device_name, 10000)
-
   Process.sleep(1000)
-  # RustlerBtleplug.GenserverLiveBook.connect(default_timeout)
-  # RustlerBtleplug.GenserverLiveBook.subscribe(ble_characteristic_uuid, default_timeout)
+
+  RustlerBtleplug.GenserverLiveBook.connect(default_timeout)
+  # Process.sleep(5000)
+  RustlerBtleplug.GenserverLiveBook.subscribe(ble_characteristic_uuid, default_timeout)
+
+  Process.sleep(10000)
+  RustlerBtleplug.GenserverLiveBook.disconnect(default_timeout)
 end)
 
 # Kino.Process.app_tree(:logger)
@@ -387,20 +457,31 @@ defmodule RustlerBtleplug.Demo do
       |> Native.start_scan(5000)
 
     Process.sleep(1000)
-    peripheral = Native.find_peripheral_by_name(central, device_name)
+
+    peripheral =
+      Native.find_peripheral_by_name(central, device_name)
+      |> Native.connect()
+      |> Native.subscribe(characteristic_uuid)
 
     # peripheral = Native.find_peripheral(central, "uuid")
-    Process.sleep(500)
 
     # peripheral = Native.connect(peripheral)
     # _peripheral = Native.subscribe(peripheral, characteristic_uuid)
 
     Process.sleep(1000)
 
+    graphviz_str = Native.get_adapter_state_graph(central)
+    Kino.Mermaid.new(graphviz_str)
+
+    peripheral
+    |> Native.disconnect()
+
     # peripheral = Native.disconnect(peripheral)
     # Native.unsubscribe(peripheral, "61d20a90-71a1-11ea-ab12-0800200c9a66")
   end
 end
+
+RustlerBtleplug.Demo.start()
 ```
 
 ```elixir
@@ -412,8 +493,8 @@ frame = Kino.Frame.new() |> Kino.render()
 # end
 
 data = [
-  %{id: 1, name: "Elixir", website: "https://elixir-lang.org"},
-  %{id: 2, name: "Erlang", website: "https://www.erlang.org"}
+  %{name: "Elixir", website: "https://elixir-lang.org"},
+  %{name: "Erlang", website: "https://www.erlang.org"}
 ]
 
 Kino.DataTable.new(data)
@@ -447,16 +528,6 @@ disk1:T -- B:server
 disk2:T -- B:db
 """)
 
-Kino.Mermaid.new("""
----
-config:
-  layout: elk
-  look: handDrawn
-  
----
-graph TD\n    Adapter[\"Adapter: CoreBluetooth\"]\n    Adapter --> b480e9ef-38bb-eeab-f910-015c979dc0da[\"Peripheral: Apple TV<br>RSSI: -88dBm<br>TX Power: N/A\"]\n    Adapter --> 4a38bf67-36b6-8532-0264-6f768b1c66e2[\"Peripheral: PressureSensor<br>RSSI: 127dBm<br>TX Power: N/A\"]\n    4a38bf67-36b6-8532-0264-6f768b1c66e2 --> 453b02b0-71a1-11ea-ab12-0800200c9a66[\"Service: 453b02b0-71a1-11ea-ab12-0800200c9a66\"]\n    453b02b0-71a1-11ea-ab12-0800200c9a66 --> 61d20a90-71a1-11ea-ab12-0800200c9a66[\"Characteristic: 61d20a90-71a1-11ea-ab12-0800200c9a66 (Read, Notify)\"]\n    Adapter --> 1b3f70a1-704f-a0d6-85ac-b7c33cd31969[\"Peripheral: 1b3f70a1-704f-a0d6-85ac-b7c33cd31969<br>RSSI: -80dBm<br>TX Power: N/A\"]\n    Adapter --> 6c2aa1b0-64b1-4767-9cd2-bb93dab30b14[\"Peripheral: 6c2aa1b0-64b1-4767-9cd2-bb93dab30b14<br>RSSI: -84dBm<br>TX Power: N/A\"]
-""")
-
 test =
   Kino.Mermaid.new("""
   ---
@@ -471,4 +542,22 @@ test =
               B
               C
   """)
+
+Kino.Mermaid.new("""
+---
+config:
+  layout: elk
+  look: handDrawn
+  
+---
+graph TD
+    Adapter["Adapter: CoreBluetooth"]
+    Adapter --> 4a38bf67-36b6-8532-0264-6f768b1c66e2["Peripheral: PressureSensor<br>RSSI: -54dBm<br>TX Power: N/A"]
+    Adapter --> 78550c6b-dfbe-aba2-8307-fa12fab836c8["Peripheral: 78550c6b-dfbe-aba2-8307-fa12fab836c8<br>RSSI: -97dBm<br>TX Power: N/A"]
+    Adapter --> 9e63611a-abd0-72bf-438e-c038217203c3["Peripheral: 9e63611a-abd0-72bf-438e-c038217203c3<br>RSSI: -71dBm<br>TX Power: N/A"]
+    Adapter --> 555c5f00-7a46-ebe9-ce2d-5ad7a4bf85e8["Peripheral: 555c5f00-7a46-ebe9-ce2d-5ad7a4bf85e8<br>RSSI: -93dBm<br>TX Power: N/A"]
+    Adapter --> b480e9ef-38bb-eeab-f910-015c979dc0da["Peripheral: Apple TV<br>RSSI: -90dBm<br>TX Power: N/A"]
+    Adapter --> 4a11a274-c1da-c0cb-7005-ca0e81e8278d["Peripheral: LE_WH-XB910N<br>RSSI: -46dBm<br>TX Power: N/A"]
+
+""")
 ```

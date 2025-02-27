@@ -1,5 +1,4 @@
-
-
+#![allow(unused_imports)]
 use crate::central_manager_state::CentralRef;
 
 use rustler::{Encoder, Term, Env, Error as RustlerError, ResourceArc};

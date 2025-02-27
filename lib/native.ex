@@ -72,8 +72,8 @@ defmodule RustlerBtleplug.Native do
   @spec unsubscribe(peripheral(), uuid(), Number.t()) :: {:ok, peripheral()} | {:error, term()}
   def unsubscribe(_peripheral, _characteristic, _timeout \\ @default_timeout), do: error()
 
-  @spec get_adapter_state_graph(central()) :: {:ok, term()} | {:error, term()}
-  def get_adapter_state_graph(_central), do: error()
+  @spec get_adapter_state_graph(central(), String.t()) :: {:ok, term()} | {:error, term()}
+  def get_adapter_state_graph(_central, _variant \\ "mindmap"), do: error()
 
   # @spec create_gatt_peripheral(String.t(), Number.t()) ::
   #         {:ok, gatt_peripheral()} | {:error, term()}

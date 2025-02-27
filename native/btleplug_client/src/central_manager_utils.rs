@@ -106,7 +106,6 @@ pub fn get_adapter_state_graph(
     }
 }
 
-
 pub fn properties_to_map<'a>(env: Env<'a>, props: &PeripheralProperties) -> Term<'a> {
     let mut map = HashMap::new();
 
@@ -237,17 +236,15 @@ pub async fn adapter_state_to_map(adapter: &Adapter) -> HashMap<String, Value> {
     result
 }
 
-
-
 pub async fn adapter_state_to_mermaid_mindmap(adapter: &Adapter) -> String {
     let mut output = String::from("mindmap\n");
 
-    // 1️⃣ Adapter Node
+    // 1️⃣ Root Node: Adapter
     let adapter_name = adapter
         .adapter_info()
         .await
         .unwrap_or_else(|_| "Unknown Adapter".to_string());
-    output.push_str(&format!("  root((Adapter: {}))\n", adapter_name));
+    output.push_str(&format!("adapter((Adapter: {}))\n", adapter_name));
 
     // 2️⃣ Fetch Peripherals
     let peripherals = adapter.peripherals().await.unwrap_or_default();
@@ -263,6 +260,7 @@ pub async fn adapter_state_to_mermaid_mindmap(adapter: &Adapter) -> String {
         let peripheral_name = properties
             .local_name
             .unwrap_or_else(|| peripheral_id.clone());
+
         let rssi_display = properties
             .rssi
             .map(|rssi| format!("RSSI: {}dBm", rssi))
@@ -273,39 +271,67 @@ pub async fn adapter_state_to_mermaid_mindmap(adapter: &Adapter) -> String {
             .map(|tx| format!("TX Power: {}dBm", tx))
             .unwrap_or_else(|| "TX Power: N/A".to_string());
 
+        let connection_status = if peripheral.is_connected().await.unwrap_or(false) {
+            "**Connected** :::green"
+        } else {
+            "**Disconnected** :::red"
+        };
+
+        // 🏷️ Peripheral Node (Indented under Adapter)
         output.push_str(&format!(
-            "  root --> {}((Peripheral: {}<br>{}<br>{}))\n",
-            peripheral_id, peripheral_name, rssi_display, tx_power_display
+            "    adapter\n        {}((Peripheral: **{}**))\n",
+            peripheral_id, peripheral_name
         ));
+        output.push_str(&format!("            {}\n", rssi_display));
+        output.push_str(&format!("            {}\n", tx_power_display));
+        output.push_str(&format!("            {}\n", connection_status));
 
         // 3️⃣ Fetch Services
         let services = peripheral.services();
         for service in services.iter() {
             let service_id = service.uuid.to_string();
             output.push_str(&format!(
-                "  {} --> {}((Service: {}))\n",
-                peripheral_id, service_id, service_id
+                "            {}[Service: {}]\n",
+                service_id, service_id
             ));
 
             // 4️⃣ Fetch Characteristics
             for char in service.characteristics.iter() {
-                let char_props = char.properties;
                 let char_id = char.uuid.to_string();
-                let char_flags = [
-                    if char_props.contains(CharPropFlags::READ) { "Read" } else { "" },
-                    if char_props.contains(CharPropFlags::WRITE) { "Write" } else { "" },
-                    if char_props.contains(CharPropFlags::NOTIFY) { "Notify" } else { "" },
-                    if char_props.contains(CharPropFlags::INDICATE) { "Indicate" } else { "" },
-                ]
-                .iter()
-                .filter(|s| !s.is_empty())
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ");
-
+                let char_props = char.properties;
+                let char_flags = format!(
+                    "[{}]",
+                    [
+                        if char_props.contains(CharPropFlags::READ) {
+                            "Read"
+                        } else {
+                            ""
+                        },
+                        if char_props.contains(CharPropFlags::WRITE) {
+                            "Write"
+                        } else {
+                            ""
+                        },
+                        if char_props.contains(CharPropFlags::NOTIFY) {
+                            "Notify"
+                        } else {
+                            ""
+                        },
+                        if char_props.contains(CharPropFlags::INDICATE) {
+                            "Indicate"
+                        } else {
+                            ""
+                        },
+                    ]
+                    .iter()
+                    .filter(|s| !s.is_empty())
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ")
+                );
                 output.push_str(&format!(
-                    "  {} --> {}((Characteristic: {} {}))\n",
-                    service_id, char_id, char_id, char_flags
+                    "                {}[Characteristic: {} {}]\n",
+                    char_id, char_id, char_flags
                 ));
             }
         }
@@ -313,7 +339,6 @@ pub async fn adapter_state_to_mermaid_mindmap(adapter: &Adapter) -> String {
 
     output
 }
-
 
 pub async fn adapter_state_to_mermaid_graph(adapter: &Adapter) -> String {
     let mut output = String::from("graph TD\n");

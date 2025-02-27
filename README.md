@@ -18,18 +18,18 @@ General modes are via genserver or piping.
 
 Add `rustler_btleplug` to your list of dependencies in `mix.exs`:
 
-```elixir
+``` elixir
 def deps do
   [
-    {:rustler_btleplug, "~> 0.0.6-alpha"},
+    {:rustler_btleplug, "~> 0.0.10-alpha"},
     {:rustler, ">= 0.31.0", optional: true} # rustler_precompiled dependency
   ]
 end
 ```
 
-```livebook
+``` livebook setup
 Mix.install([
-  {:rustler_btleplug, "~> 0.0.6-alpha"}
+  {:rustler_btleplug, "~> 0.0.10-alpha"}
 ])
 ```
 

@@ -29,11 +29,14 @@ mod atoms;
 mod central_manager;
 mod logging;
 mod peripheral;
+mod central_manager_finder;
+mod central_manager_state;
+mod central_manager_utils;
 
 extern crate rustler;
 extern crate rustler_codegen;
 
-use central_manager::*;
+use central_manager_state::CentralRef;
 use log::{debug, info};
 use once_cell::sync::Lazy;
 use peripheral::*;

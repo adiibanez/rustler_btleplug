@@ -78,8 +78,8 @@ pub fn debug_properties(properties: &PeripheralProperties) {
 #[rustler::nif]
 pub fn get_adapter_state_graph(
     env: Env<'_>,
-    variant: String, // Accepts "graph" or "mindmap"
     resource: ResourceArc<CentralRef>,
+    variant: String, // Accepts "graph" or "mindmap"
 ) -> Result<Term<'_>, RustlerError> {
     let resource_arc = resource.0.clone();
 

@@ -12,6 +12,7 @@ env:
 
 jobs:
   publish:
+    if: false
     name: Publish to Hex.pm
     runs-on: ubuntu-latest
     steps:

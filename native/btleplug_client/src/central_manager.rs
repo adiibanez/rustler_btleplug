@@ -356,8 +356,8 @@ pub fn stop_scan(
 }
 
 #[rustler::nif(schedule = "DirtyIo")]
-pub fn find_peripheral_by_name<'a>(
-    env: Env<'a>,
+pub fn find_peripheral_by_name(
+    env: Env,
     resource: ResourceArc<CentralRef>,
     name: String,
     timeout_ms: u64,
@@ -395,12 +395,12 @@ pub fn find_peripheral_by_name<'a>(
                 .collect()
         };
 
-        for (id, cached_peripheral_ref) in cached_peripherals {
-            info!("🔍 Checking cached PeripheralRef: {}", id);
+        // for (id, cached_peripheral_ref) in cached_peripherals {
+        //     info!("🔍 Checking cached PeripheralRef: {}", id);
 
-            let _ = tx.send(Ok(cached_peripheral_ref.clone()));
-            return;
-        }
+        //     let _ = tx.send(Ok(cached_peripheral_ref.clone()));
+        //     return;
+        // }
 
         // **Scan for new peripherals**
         let peripherals =

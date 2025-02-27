@@ -47,7 +47,7 @@ impl PeripheralState {
             pid,
             peripheral,
             state: PeripheralStateEnum::Disconnected,
-            event_receiver: event_receiver,
+            event_receiver,
         }
     }
 
@@ -124,10 +124,10 @@ pub async fn discover_services_internal(
             "✅ Services discovered for peripheral: {:?}",
             peripheral.id()
         );
-        return true;
+        true
     } else {
         warn!("❌ Service discovery timed out for {:?}", peripheral.id());
-        return false;
+        false
     }
 }
 

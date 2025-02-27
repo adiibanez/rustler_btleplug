@@ -286,7 +286,7 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                             "🔍 Peripheral Updated: {:?}: is_connected: {:?}",
                             properties.local_name, is_connected
                         );
-                        
+
                         debug_properties(&properties);
 
                         match msg_env.send_and_clear(&pid, |env| {
@@ -333,7 +333,11 @@ pub fn debug_properties<'a>(properties: &PeripheralProperties) {
     let rssi = properties.rssi.map_or("N/A".to_string(), |r| r.to_string());
     let manufacturer_data = properties.manufacturer_data.clone();
     let service_data = properties.service_data.clone();
-    let services = properties.services.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+    let services = properties
+        .services
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
 
     println!("🔍 **Discovered Peripheral:**");
     println!("   📛 Name: {:?}", local_name);
@@ -623,7 +627,6 @@ pub fn find_peripheral_by_name(
     }
 }
 
-
 #[rustler::nif(schedule = "DirtyIo")]
 pub fn find_peripheral(
     env: Env,
@@ -684,11 +687,8 @@ pub fn find_peripheral(
 
         for peripheral in peripherals {
             if peripheral.id().to_string() == uuid_clone {
-                let peripheral_state = PeripheralState::new(
-                    pid,
-                    Arc::new(peripheral.clone()),
-                    event_receiver.clone(),
-                );
+                let peripheral_state =
+                    PeripheralState::new(pid, Arc::new(peripheral.clone()), event_receiver.clone());
                 let peripheral_ref =
                     ResourceArc::new(PeripheralRef(Arc::new(Mutex::new(peripheral_state))));
 
@@ -708,7 +708,10 @@ pub fn find_peripheral(
             }
         }
 
-        let _ = tx.send(Err(format!("Peripheral not found with UUID: {}", uuid_clone)));
+        let _ = tx.send(Err(format!(
+            "Peripheral not found with UUID: {}",
+            uuid_clone
+        )));
     });
 
     match rx.blocking_recv() {

@@ -20,6 +20,151 @@ use std::iter::FromIterator;
 
 use btleplug::platform::Adapter;
 
+#[derive(NifStruct)]
+#[module = "RustlerBtleplug.AdapterInfo"]
+struct AdapterInfo {
+    name: String,
+}
+
+/// ✅ **NifStruct for Peripheral** (Now contains services directly)
+#[derive(NifStruct)]
+#[module = "RustlerBtleplug.PeripheralInfo"]
+struct PeripheralInfo {
+    id: String,
+    name: String,
+    rssi: Option<i16>,
+    tx_power: Option<i16>,
+    services: Vec<ServiceInfo>, // **Nested directly inside Peripheral**
+}
+
+/// ✅ **NifStruct for Service** (Now contains characteristics directly)
+#[derive(NifStruct)]
+#[module = "RustlerBtleplug.ServiceInfo"]
+struct ServiceInfo {
+    uuid: String,
+    characteristics: Vec<CharacteristicInfo>, // **Nested directly inside Service**
+}
+
+/// ✅ **NifStruct for Characteristic**
+#[derive(NifStruct)]
+#[module = "RustlerBtleplug.CharacteristicInfo"]
+struct CharacteristicInfo {
+    uuid: String,
+    properties: Vec<String>,
+}
+
+/// ✅ **NifMap: Main Struct for Adapter State**
+#[derive(NifMap)]
+struct AdapterState {
+    adapter: AdapterInfo,
+    peripherals: Vec<PeripheralInfo>, // **Now a list instead of a HashMap**
+}
+
+/// ✅ **Nif Function: Fetch Adapter State (Returns Nested Hierarchy)**
+#[rustler::nif(schedule = "DirtyIo")]
+pub fn get_adapter_state_map(
+    env: Env<'_>,
+    resource: ResourceArc<CentralRef>,
+) -> Result<AdapterState, RustlerError> {
+    let resource_arc = resource.0.clone();
+
+    let (adapter, _pid) = {
+        let central_state = resource_arc.lock().unwrap();
+        (central_state.adapter.clone(), central_state.pid)
+    };
+
+    // **Ensure the async function runs synchronously**
+    let adapter_state = tokio::task::block_in_place(|| {
+        let runtime = tokio::runtime::Runtime::new().expect("Failed to create runtime");
+        runtime.block_on(adapter_state_to_map(&adapter))
+    });
+
+    Ok(adapter_state)
+}
+
+async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
+    // 1️⃣ Adapter Info
+    let adapter_info = AdapterInfo {
+        name: adapter
+            .adapter_info()
+            .await
+            .unwrap_or_else(|_| "Unknown Adapter".to_string()),
+    };
+
+    // 2️⃣ Fetch Peripherals
+    let peripherals = adapter.peripherals().await.unwrap_or_default();
+    let mut peripheral_list = Vec::new();
+
+    for peripheral in peripherals.iter() {
+        let peripheral_id = peripheral.id().to_string();
+
+        // 🔍 **Ensure we fetch live properties**
+        let properties = match get_peripheral_properties(adapter, &peripheral_id).await {
+            Some((_, props)) => props,
+            None => continue, // **Skip if no properties found**
+        };
+
+        let mut peripheral_info = PeripheralInfo {
+            id: peripheral_id.clone(),
+            name: properties.local_name.unwrap_or(peripheral_id.clone()),
+            rssi: properties.rssi,
+            tx_power: properties.tx_power_level,
+            services: vec![], // ✅ Will be updated below
+        };
+
+        // 3️⃣ **Explicitly Trigger Service Discovery** before fetching services
+        if let Err(e) = peripheral.discover_services().await {
+            warn!("❌ Failed to discover services for {}: {:?}", peripheral_id, e);
+        }
+
+        // 4️⃣ Fetch Services
+        let mut service_list = Vec::new();
+        let services = peripheral.services(); // ✅ Now this should return valid data
+
+        for service in services.iter() {
+            let service_id = service.uuid.to_string();
+
+            // 5️⃣ Fetch Characteristics
+            let mut characteristic_list = Vec::new();
+            for char in service.characteristics.iter() {
+                let char_id = char.uuid.to_string();
+                let char_props = [
+                    if char.properties.contains(CharPropFlags::READ) { "Read" } else { "" },
+                    if char.properties.contains(CharPropFlags::WRITE) { "Write" } else { "" },
+                    if char.properties.contains(CharPropFlags::NOTIFY) { "Notify" } else { "" },
+                    if char.properties.contains(CharPropFlags::INDICATE) { "Indicate" } else { "" },
+                ]
+                .iter()
+                .filter(|s| !s.is_empty())
+                .cloned()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>();
+
+                characteristic_list.push(CharacteristicInfo {
+                    uuid: char_id,
+                    properties: char_props,
+                });
+            }
+
+            service_list.push(ServiceInfo {
+                uuid: service_id,
+                characteristics: characteristic_list,
+            });
+        }
+
+        // ✅ Update peripheral info with fetched services
+        peripheral_info.services = service_list;
+        peripheral_list.push(peripheral_info);
+    }
+
+    AdapterState {
+        adapter: adapter_info,
+        peripherals: peripheral_list,
+    }
+}
+
+
+
 #[rustler::nif]
 pub fn get_adapter_state_graph(
     env: Env<'_>,
@@ -52,171 +197,6 @@ pub fn get_adapter_state_graph(
 }
 
 
-
-#[derive(NifStruct)]
-#[module = "RustlerBtleplug.AdapterInfo"]
-struct AdapterInfo {
-    name: String,
-}
-
-#[derive(NifStruct)]
-#[module = "RustlerBtleplug.PeripheralInfo"]
-struct PeripheralInfo {
-    id: String,
-    name: String,
-    rssi: Option<i16>,
-    tx_power: Option<i16>,
-}
-
-#[derive(NifStruct)]
-#[module = "RustlerBtleplug.ServiceInfo"]
-struct ServiceInfo {
-    uuid: String,
-    peripheral_id: String,
-}
-
-/// ✅ Struct to store characteristic information
-#[derive(NifStruct)]
-#[module = "RustlerBtleplug.CharacteristicInfo"]
-struct CharacteristicInfo {
-    uuid: String,
-    service_uuid: String,
-    properties: String,
-}
-
-#[derive(NifMap)]
-struct AdapterState {
-    adapter: AdapterInfo,
-    peripherals: HashMap<String, PeripheralInfo>,
-    services: HashMap<String, ServiceInfo>,
-    characteristics: HashMap<String, CharacteristicInfo>,
-}
-
-
-#[rustler::nif(schedule = "DirtyIo")]
-pub fn get_adapter_state_map(
-    env: Env<'_>,
-    resource: ResourceArc<CentralRef>,
-) -> Result<AdapterState, RustlerError> {
-    let resource_arc = resource.0.clone();
-
-    let (adapter, _pid) = {
-        let central_state = resource_arc.lock().unwrap();
-        (central_state.adapter.clone(), central_state.pid)
-    };
-
-    // 🏁 **Ensure the async function runs synchronously**
-    let adapter_state = tokio::task::block_in_place(|| {
-        let runtime = tokio::runtime::Runtime::new().expect("Failed to create runtime");
-        runtime.block_on(adapter_state_to_map(&adapter))
-    });
-
-    Ok(adapter_state)
-}
-
-// #[derive(NifStruct)]
-// #[module = "Peripheral"]
-// struct Peripheral {
-//     id: String,
-//     name: String,
-//     services: Vec<Service>,
-// }
-
-// #[derive(NifStruct)]
-// #[module = "Service"]
-// struct Service {
-//     uuid: String,
-//     characteristics: Vec<Characteristic>,
-// }
-
-// #[derive(NifStruct)]
-// #[module = "Characteristic"]
-// struct Characteristic {
-//     uuid: String,
-//     properties: String,
-// }
-
-
-//use btleplug::api::{Adapter, CharPropFlags};
-
-async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
-    // 1️⃣ Get Adapter Info
-    let adapter_name = adapter
-        .adapter_info()
-        .await
-        .unwrap_or_else(|_| "Unknown Adapter".to_string());
-
-    let adapter_info = AdapterInfo { name: adapter_name };
-
-    // 2️⃣ Get Peripherals
-    let peripherals = adapter.peripherals().await.unwrap_or_default();
-    let mut peripherals_map = HashMap::new();
-    let mut services_map = HashMap::new();
-    let mut characteristics_map = HashMap::new();
-
-    for peripheral in peripherals.iter() {
-        let peripheral_id = peripheral.id().to_string();
-
-        // 🔍 Get Peripheral Properties
-        let properties = match get_peripheral_properties(adapter, &peripheral_id).await {
-            Some((_, props)) => props,
-            None => continue, // Skip if no properties found
-        };
-
-        let peripheral_info = PeripheralInfo {
-            id: peripheral_id.clone(),
-            name: properties.local_name.unwrap_or(peripheral_id.clone()),
-            rssi: properties.rssi,
-            tx_power: properties.tx_power_level,
-        };
-
-        peripherals_map.insert(peripheral_id.clone(), peripheral_info);
-
-        // 3️⃣ Fetch Services
-        let services = peripheral.services();
-        for service in services.iter() {
-            let service_id = service.uuid.to_string();
-
-            let service_info = ServiceInfo {
-                uuid: service_id.clone(),
-                peripheral_id: peripheral_id.clone(),
-            };
-
-            services_map.insert(service_id.clone(), service_info);
-
-            // 4️⃣ Fetch Characteristics
-            for char in service.characteristics.iter() {
-                let char_id = char.uuid.to_string();
-                let char_props = [
-                    if char.properties.contains(CharPropFlags::READ) { "Read" } else { "" },
-                    if char.properties.contains(CharPropFlags::WRITE) { "Write" } else { "" },
-                    if char.properties.contains(CharPropFlags::NOTIFY) { "Notify" } else { "" },
-                    if char.properties.contains(CharPropFlags::INDICATE) { "Indicate" } else { "" },
-                ]
-                .iter()
-                .filter(|s| !s.is_empty())
-                .cloned()
-                .collect::<Vec<_>>()
-                .join(", ");
-
-                let characteristic_info = CharacteristicInfo {
-                    uuid: char_id.clone(),
-                    service_uuid: service_id.clone(),
-                    properties: char_props,
-                };
-
-                characteristics_map.insert(char_id.clone(), characteristic_info);
-            }
-        }
-    }
-
-    AdapterState {
-        adapter: adapter_info,
-        peripherals: peripherals_map,
-        services: services_map,
-        characteristics: characteristics_map,
-    }
-}
 
 pub async fn adapter_state_to_mermaid_mindmap(adapter: &Adapter) -> String {
     let mut output = String::from("mindmap\n");

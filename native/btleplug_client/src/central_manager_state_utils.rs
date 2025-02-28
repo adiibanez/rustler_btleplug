@@ -1,12 +1,15 @@
 #![allow(unused_imports)]
-use crate::central_manager_state::CentralRef;
-use crate::central_manager_utils::{get_peripheral_properties, properties_to_map};
+use crate::central_manager_state::get_peripheral_rssi_cache;
+use crate::central_manager_state::{CentralRef, DISCOVERED_SERVICES, RSSI_CACHE};
+use crate::central_manager_utils::{
+    get_characteristic_properties, get_peripheral_properties, properties_to_map,
+};
 
 use rustler::{Encoder, Env, Error as RustlerError, NifMap, NifStruct, ResourceArc, Term};
 //use serde_rustler::{from_term, to_term};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use btleplug::api::{Central, Peripheral};
+use btleplug::api::{Central, Characteristic, Peripheral};
 
 use log::{debug, info, warn};
 
@@ -33,6 +36,8 @@ struct PeripheralInfo {
     id: String,
     name: String,
     rssi: Option<i16>,
+    rssi_cache: Vec<(i64, i16)>,
+    is_connected: bool,
     tx_power: Option<i16>,
     services: Vec<ServiceInfo>, // **Nested directly inside Peripheral**
 }
@@ -46,7 +51,7 @@ struct ServiceInfo {
 }
 
 /// ✅ **NifStruct for Characteristic**
-#[derive(NifStruct)]
+#[derive(NifStruct, Debug, Clone, PartialEq, Eq, Hash)]
 #[module = "RustlerBtleplug.CharacteristicInfo"]
 struct CharacteristicInfo {
     uuid: String,
@@ -81,100 +86,85 @@ pub fn get_adapter_state_map(
 }
 
 async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
-    // 1️⃣ Fetch Adapter Information
-    let adapter_info = AdapterInfo {
-        name: adapter
-            .adapter_info()
-            .await
-            .unwrap_or_else(|_| "Unknown Adapter".to_string()),
-    };
+    let adapter_name = adapter
+        .adapter_info()
+        .await
+        .unwrap_or_else(|_| "Unknown Adapter".to_string());
 
-    // 2️⃣ Get Live Peripherals
+    let adapter_info = AdapterInfo { name: adapter_name };
+
     let peripherals = adapter.peripherals().await.unwrap_or_default();
-    let mut peripheral_list = Vec::new();
+    let mut peripherals_vec = Vec::new();
+
+    // 🏷 Read Cached Advertised Services
+    let cache = DISCOVERED_SERVICES.read().await;
 
     for peripheral in peripherals.iter() {
         let peripheral_id = peripheral.id().to_string();
 
-        // 🔍 Fetch Peripheral Properties
         let properties = match get_peripheral_properties(adapter, &peripheral_id).await {
             Some((_, props)) => props,
-            None => continue, // Skip if no properties found
+            None => continue,
         };
 
-        let mut peripheral_info = PeripheralInfo {
-            id: peripheral_id.clone(),
-            name: properties.local_name.unwrap_or(peripheral_id.clone()),
-            rssi: properties.rssi,
-            tx_power: properties.tx_power_level,
-            services: vec![], // ✅ Services will be populated next
-        };
+        let is_connected = peripheral.is_connected().await.unwrap_or(false);
+        let rssi_cache = get_peripheral_rssi_cache(&peripheral_id).await.unwrap_or_default();
 
-        // 3️⃣ **Force Service Discovery**
-        if let Err(e) = peripheral.discover_services().await {
-            warn!(
-                "❌ Failed to discover services for {}: {:?}",
-                peripheral_id, e
-            );
+        //let peripheral_rssi_cache = rssi_cache.get(&peripheral_id).map(|v| v.clone());
+
+        let mut service_map: HashMap<String, HashSet<CharacteristicInfo>> = HashMap::new();
+
+        // 🔥 Merge advertised services from cache
+        if let Some(advertised_services) = cache.get(&peripheral_id) {
+            for service_uuid in advertised_services {
+                service_map
+                    .entry(service_uuid.clone())
+                    .or_insert(HashSet::new());
+            }
         }
 
-        // 4️⃣ Fetch Services
-        let mut service_list = Vec::new();
-        for service in peripheral.services().iter() {
+        // 3️⃣ Fetch Live Services & Characteristics
+        let services = peripheral.services();
+        for service in services.iter() {
             let service_id = service.uuid.to_string();
+            let char_set = service_map
+                .entry(service_id.clone())
+                .or_insert(HashSet::new());
 
-            // 5️⃣ Fetch Characteristics
-            let mut characteristic_list = Vec::new();
             for char in service.characteristics.iter() {
-                let char_id = char.uuid.to_string();
-                let char_props = [
-                    if char.properties.contains(CharPropFlags::READ) {
-                        "Read"
-                    } else {
-                        ""
-                    },
-                    if char.properties.contains(CharPropFlags::WRITE) {
-                        "Write"
-                    } else {
-                        ""
-                    },
-                    if char.properties.contains(CharPropFlags::NOTIFY) {
-                        "Notify"
-                    } else {
-                        ""
-                    },
-                    if char.properties.contains(CharPropFlags::INDICATE) {
-                        "Indicate"
-                    } else {
-                        ""
-                    },
-                ]
-                .iter()
-                .filter(|s| !s.is_empty())
-                .cloned()
-                .map(|s| s.to_string())
-                .collect::<Vec<String>>();
-
-                characteristic_list.push(CharacteristicInfo {
-                    uuid: char_id,
+                let char_props = get_characteristic_properties(&char);
+                char_set.insert(CharacteristicInfo {
+                    uuid: char.uuid.to_string(),
                     properties: char_props,
                 });
             }
-
-            service_list.push(ServiceInfo {
-                uuid: service_id,
-                characteristics: characteristic_list,
-            });
         }
 
-        // ✅ Attach Services to Peripheral
-        peripheral_info.services = service_list;
-        peripheral_list.push(peripheral_info);
+        // Convert HashMap into Vec<ServiceInfo>
+        let service_infos: Vec<ServiceInfo> = service_map
+            .into_iter()
+            .map(|(uuid, characteristics)| ServiceInfo {
+                uuid,
+                characteristics: characteristics.into_iter().collect(),
+            })
+            .collect();
+
+        let peripheral_info = PeripheralInfo {
+            id: peripheral_id.clone(),
+            name: properties.local_name.unwrap_or(peripheral_id.clone()),
+            rssi: properties.rssi,
+            rssi_cache: rssi_cache,
+            is_connected: is_connected,
+            tx_power: properties.tx_power_level,
+            services: service_infos,
+        };
+
+        peripherals_vec.push(peripheral_info);
     }
 
     AdapterState {
         adapter: adapter_info,
-        peripherals: peripheral_list,
+        peripherals: peripherals_vec,
     }
 }
 

@@ -2,8 +2,10 @@
 #![allow(unused_variables)]
 use crate::atoms;
 
+use crate::central_manager_state::cache_rssi;
 use crate::central_manager_state::CentralManagerState;
 use crate::central_manager_state::CentralRef;
+use crate::central_manager_state::DISCOVERED_SERVICES;
 use crate::central_manager_utils::*;
 
 use log::{debug, info, warn};
@@ -14,6 +16,7 @@ use btleplug::platform::{Adapter, Manager};
 use futures::StreamExt;
 
 use crate::RUNTIME;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
@@ -79,7 +82,6 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
             let mut msg_env = OwnedEnv::new();
 
             match event {
-                // ✅ **Device Discovered**
                 CentralEvent::DeviceDiscovered(id) => {
                     let uuid = id.to_string();
                     info!("🔍 Device discovered: {}", uuid);
@@ -91,6 +93,11 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                         }
 
                         let properties_opt = peripheral.properties().await.ok().flatten();
+
+                        if let Some(rssi) = properties_opt.as_ref().and_then(|p| p.rssi) {
+                            cache_rssi(&uuid, rssi).await;
+                        }
+
                         let is_connected = peripheral.is_connected().await.unwrap_or(false);
 
                         debug!(
@@ -118,7 +125,6 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                     }
                 }
 
-                // ✅ **Device Updated**
                 CentralEvent::DeviceUpdated(id) => {
                     let uuid = id.to_string();
                     info!("🔄 Device updated: {}", uuid);
@@ -126,6 +132,10 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                     if let Some(peripheral) = find_peripheral_by_uuid(&adapter_clone, &uuid).await {
                         let properties_opt = peripheral.properties().await.ok().flatten();
                         let is_connected = peripheral.is_connected().await.unwrap_or(false);
+
+                        if let Some(rssi) = properties_opt.as_ref().and_then(|p| p.rssi) {
+                            cache_rssi(&uuid, rssi).await;
+                        }
 
                         debug!(
                             "🔄 Updated Peripheral: {:?} (Connected: {:?})",
@@ -152,7 +162,6 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                     }
                 }
 
-                // ✅ **Device Connected**
                 CentralEvent::DeviceConnected(id) => {
                     let uuid = id.to_string();
                     info!("🔗 Device connected: {}", uuid);
@@ -164,7 +173,6 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                     }
                 }
 
-                // ✅ **Device Disconnected**
                 CentralEvent::DeviceDisconnected(id) => {
                     let uuid = id.to_string();
                     info!("❌ Device disconnected: {}", uuid);
@@ -176,7 +184,6 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                     }
                 }
 
-                // ✅ **Adapter State Changed**
                 CentralEvent::StateUpdate(state) => {
                     debug!("🔄 Adapter state changed: {:?}", state);
                     match msg_env.send_and_clear(&pid, |env| {
@@ -190,8 +197,89 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                         Err(e) => debug!("⚠️ Failed to send state update message: {:?}", e),
                     }
                 }
+                CentralEvent::ManufacturerDataAdvertisement {
+                    id,
+                    manufacturer_data,
+                } => {
+                    let uuid = id.to_string();
+                    debug!(
+                        "Manufacturer data from UUID: {} - Data: {:?}",
+                        uuid, manufacturer_data
+                    );
+                    match msg_env.send_and_clear(&pid, |env| {
+                        (
+                            atoms::btleplug_manufacturer_data_advertisement(),
+                            (uuid, manufacturer_data),
+                        )
+                            .encode(env)
+                    }) {
+                        Ok(_) => debug!("Successfully sent manufacturer data message"),
+                        Err(e) => debug!(
+                            "Failed to send manufacturer data message (Error: {:?}). \
+                    This might happen if the Elixir process has terminated.",
+                            e
+                        ),
+                    }
+                }
+                CentralEvent::ServiceDataAdvertisement { id, service_data } => {
+                    let uuid = id.to_string();
+                    debug!(
+                        "Service data from UUID: {} - Data: {:?}",
+                        uuid, service_data
+                    );
 
-                _ => debug!("🆕 Other event: {:?}", event),
+                    // Convert the HashMap with Uuid keys to String keys
+                    let converted_data: HashMap<String, Vec<u8>> = service_data
+                        .into_iter()
+                        .map(|(k, v)| (k.to_string(), v))
+                        .collect();
+
+                    match msg_env.send_and_clear(&pid, |env| {
+                        (
+                            atoms::btleplug_service_data_advertisement(),
+                            (uuid, converted_data),
+                        )
+                            .encode(env)
+                    }) {
+                        Ok(_) => debug!("Successfully sent service data message"),
+                        Err(e) => debug!(
+                            "Failed to send service data message (Error: {:?}). \
+            This might happen if the Elixir process has terminated.",
+                            e
+                        ),
+                    }
+                }
+                CentralEvent::ServicesAdvertisement { id, services } => {
+                    let uuid = id.to_string();
+
+                    // ✅ Clone services BEFORE consuming it
+                    let services_clone = services.clone();
+
+                    let services: Vec<String> =
+                        services.into_iter().map(|s| s.to_string()).collect();
+                    debug!("Services from UUID: {} - Services: {:?}", uuid, services);
+
+                    let service_uuids: Vec<String> =
+                        services_clone.into_iter().map(|s| s.to_string()).collect();
+
+                    let mut cache = DISCOVERED_SERVICES.write().await;
+                    cache.insert(uuid.clone(), service_uuids.clone());
+
+                    match msg_env.send_and_clear(&pid, |env| {
+                        (
+                            atoms::btleplug_services_advertisement(),
+                            (uuid, service_uuids),
+                        )
+                            .encode(env)
+                    }) {
+                        Ok(_) => debug!("Successfully sent services message"),
+                        Err(e) => debug!(
+                            "Failed to send services message (Error: {:?}). \
+            This might happen if the Elixir process has terminated.",
+                            e
+                        ),
+                    }
+                } //_ => debug!("🆕 Other event: {:?}", event),
             }
         }
         debug!("📴 Event receiver closed.");

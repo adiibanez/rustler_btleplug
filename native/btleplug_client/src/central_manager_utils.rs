@@ -5,7 +5,7 @@ use rustler::{Encoder, Env, Error as RustlerError, NifStruct, ResourceArc, Term}
 //use serde_rustler::{from_term, to_term};
 use std::collections::HashMap;
 
-use btleplug::api::{Central, Peripheral};
+use btleplug::api::{Central, Characteristic, Peripheral};
 
 use log::{debug, info, warn};
 
@@ -33,6 +33,52 @@ pub async fn get_peripheral_properties(
         }
     }
     None
+}
+
+pub fn get_characteristic_properties(characteristic: &Characteristic) -> Vec<String> {
+    let mut properties = Vec::new();
+
+    if characteristic.properties.contains(CharPropFlags::READ) {
+        properties.push("Read".to_string());
+    }
+    if characteristic.properties.contains(CharPropFlags::WRITE) {
+        properties.push("Write".to_string());
+    }
+    if characteristic
+        .properties
+        .contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
+    {
+        properties.push("Write Without Response".to_string());
+    }
+    if characteristic.properties.contains(CharPropFlags::NOTIFY) {
+        properties.push("Notify".to_string());
+    }
+    if characteristic.properties.contains(CharPropFlags::INDICATE) {
+        properties.push("Indicate".to_string());
+    }
+    if characteristic.properties.contains(CharPropFlags::BROADCAST) {
+        properties.push("Broadcast".to_string());
+    }
+    if characteristic
+        .properties
+        .contains(CharPropFlags::EXTENDED_PROPERTIES)
+    {
+        properties.push("Extended Properties".to_string());
+    }
+    if characteristic
+        .properties
+        .contains(CharPropFlags::AUTHENTICATED_SIGNED_WRITES)
+    {
+        properties.push("Authenticated Signed Writes".to_string());
+    }
+    // if characteristic.properties.contains(CharPropFlags::RELIABLE_WRITE) {
+    //     properties.push("Reliable Write".to_string());
+    // }
+    // if characteristic.properties.contains(CharPropFlags::WRITABLE_AUXILIARIES) {
+    //     properties.push("Writable Auxiliaries".to_string());
+    // }
+
+    properties
 }
 
 pub fn debug_properties(properties: &PeripheralProperties) {

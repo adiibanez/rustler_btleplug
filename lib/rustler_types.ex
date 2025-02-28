@@ -9,12 +9,14 @@ end
 defmodule RustlerBtleplug.PeripheralInfo do
   @moduledoc false
   @enforce_keys [:id, :name, :rssi, :tx_power, :services]
-  defstruct [:id, :name, :rssi, :tx_power, :services]
+  defstruct [:id, :name, :rssi, :rssi_cache, :is_connected, :tx_power, :services]
 
   @type t :: %__MODULE__{
           id: String.t(),
           name: String.t(),
           rssi: integer() | nil,
+          rssi_cache: [{integer(), integer()}], # Tuple: {timestamp, RSSI value}
+          is_connected: boolean(),
           tx_power: integer() | nil,
           services: [RustlerBtleplug.ServiceInfo.t()]
         }

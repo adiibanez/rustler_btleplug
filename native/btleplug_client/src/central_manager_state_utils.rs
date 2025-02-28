@@ -119,9 +119,7 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
         // 🔥 Merge advertised services from cache
         if let Some(advertised_services) = cache.get(&peripheral_id) {
             for service_uuid in advertised_services {
-                service_map
-                    .entry(service_uuid.clone())
-                    .or_default();
+                service_map.entry(service_uuid.clone()).or_default();
             }
         }
 
@@ -129,9 +127,7 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
         let services = peripheral.services();
         for service in services.iter() {
             let service_id = service.uuid.to_string();
-            let char_set = service_map
-                .entry(service_id.clone())
-                .or_default();
+            let char_set = service_map.entry(service_id.clone()).or_default();
 
             for char in service.characteristics.iter() {
                 let char_props = get_characteristic_properties(char);

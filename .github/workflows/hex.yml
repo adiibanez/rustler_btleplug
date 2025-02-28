@@ -1,11 +1,12 @@
 name: Hex.pm Release
 on:
-  push:
-    branches: 
-      - main
-    tags:
-      - 'v*'
   workflow_dispatch:
+#  push:
+#    branches: 
+    #  - main
+#    tags:
+    #  - 'v*'
+  
 
 env:
   MIX_ENV: prod

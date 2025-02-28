@@ -12,7 +12,7 @@ updates:
 
   # Maintain dependencies for Cargo
   - package-ecosystem: "cargo"
-    directory: "/"
+    directory: "/native"
     schedule:
       interval: "daily"
     ignore:
@@ -20,6 +20,6 @@ updates:
         update-types: ["version-update:semver-patch"] # ignore patch updates
 
   - package-ecosystem: "mix"
-    directory: "/tests/support/test_server/"
+    directory: "/"
     schedule:
       interval: "daily"

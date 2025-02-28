@@ -3,10 +3,7 @@
 ```elixir
 Mix.install([
   {:kino, "~> 0.15.2"},
-  #{:rustler_btleplug, "~> 0.0.10-alpha"}
-  {:rustler_btleplug,
-   path: "/Users/adrianibanez/Documents/projects/2024_sensor-platform/checkouts/rustler_btleplug",
-  },
+  {:rustler_btleplug, "~> 0.0.10-alpha"},
   {:rustler, "~> 0.36.1", optional: true}
 ])
 ```
@@ -30,18 +27,8 @@ defmodule RustlerBtleplug.GenserverLiveBook do
             frame: nil,
             layout: nil
 
-  def start_link(_opts) do
-    GenServer.start_link(__MODULE__, %{}, name: @name)
-  end
-
-  def child_spec(init_arg) do
-    Supervisor.child_spec(
-      %{
-        id: init_arg,
-        start: {__MODULE__, :start_link, [init_arg]}
-      },
-      []
-    )
+  def start_link(frame) do
+    GenServer.start_link(__MODULE__, %{frame: frame}, name: @name)
   end
 
   def init(state) do
@@ -50,13 +37,20 @@ defmodule RustlerBtleplug.GenserverLiveBook do
     {:ok, state, {:continue, :setup}}
   end
 
-  def handle_continue(_, _state) do
-    datatable = Kino.DataTable.new([])
+  def handle_continue(_, state) do
+    graph =
+      Kino.Mermaid.new("""
+      graph TD;
+        A-->B;
+        A-->C;
+        B-->D;
+        C-->D;
+      """)
 
-    graph = Kino.Text.new("Not initialized ...")
-      
-    #layout = Kino.Layout.grid([datatable, graph])
-    # frame = Kino.Frame.new(Kino.Layout.grid([datatable, graph])) |> Kino.render()
+    graph_frame = Kino.Frame.new()
+    Kino.Frame.render(graph_frame, graph)
+    datatable = Kino.DataTable.new([], keys: [:type, :uuid, :payload])
+    Kino.Frame.render(state.frame, Kino.Layout.grid([graph_frame, datatable]))
 
     {:noreply,
      %{
@@ -64,161 +58,174 @@ defmodule RustlerBtleplug.GenserverLiveBook do
        peripheral: nil,
        ble_messages: [],
        datatable: datatable,
-       graph: graph,
-       # frame: Kino.Frame.new() |> Kino.Frame.render(Kino.Layout.grid([datatable, graph])),
-       frame: Kino.Frame.new() |> Kino.render(),
-       #layout: layout
+       frame: state.frame,
+       graph_frame: graph_frame
      }}
   end
 
+
+  @spec decode_payload(String.t() | map() | list() | any()) :: map() | list() | any()
+  def decode_payload(payload) when is_binary(payload) do
+    case Jason.decode(payload) do
+      {:ok, decoded} -> decoded
+      {:error, _e} -> 
+        # IO.puts("Failed to parse #{payload}, e: #{inspect(e)}") # Remove inspect to not reveal any sensitive information
+        payload #If it can't be JSON, return the original payload.
+    end
+  end
+  def decode_payload(payload), do: payload 
+
+  @spec format_payload(any) :: String
+  def format_payload(nil), do: ""  # Handle nil values explicitly
+  def format_payload(payload) when is_binary(payload), do: payload
+  def format_payload(payload) when is_list(payload), do: Enum.join(payload, ", ")
+  
+  def format_payload(%{} = payload) do
+    payload
+    |> Enum.map(fn {key, value} ->
+      "#{key}: #{format_payload(value)}"  # Recursive call for nested structures
+    end)
+    |> Enum.join(", ")
+  end
+
+  # Fallback for other data types
+  def format_payload(payload), do: inspect(payload)
+
   def update_state_with_message(state, msg) do
-    IO.puts("update state 1: state=#{inspect(state)}, msg=#{inspect(msg)}")
-  
-    new_state = %{state | ble_messages: Enum.take([msg | state.ble_messages], 100)}
-  
-    IO.puts("update state 2: new_state=#{inspect(new_state)}, msg=#{inspect(msg)}")
-  
-    #datatable = Kino.DataTable.update(state.datatable, new_state.ble_messages)
-    Kino.DataTable.update(state.datatable, new_state.ble_messages)
+    # Logger.debug("Called update_state_with_message...")
     
-    IO.puts("update state 3: new_state=#{inspect(new_state)}, msg=#{inspect(msg)}")
+    #decoded_payload = decode_payload(msg.payload)
+    formatted_payload = format_payload(msg.payload)
+    
+    #IO.puts(inspect(msg))
+    
+
+    formatted_msg = msg |>
+      Map.put(:payload, formatted_payload )
+    
+    IO.puts(inspect(formatted_msg))
+
+    new_state = %{state | ble_messages: Enum.take([formatted_msg | state.ble_messages], 100)}
+    
+    Kino.DataTable.update(state.datatable, new_state.ble_messages)
     new_state
   end
-
-  def render_frame(state) do
-      Kino.Frame.render(
-        state.frame,
-        Kino.Layout.grid([state.datatable, state.graph])
-      )
-    state
-  end
-
+  
   def update_graph(state) do
-    graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central, "mindmap")
-    graph = Kino.Mermaid.new(graphviz_str)
-    %{state | graph: graph}
+    graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central)
+    graph =
+      Kino.Mermaid.new(graphviz_str)
+      
+    Kino.Frame.render(state.graph_frame, graph)    
   end
+
+  # def handle_info({btl_event, msg}, state) do
+  #   Logger.debug("btl_event: #{inspect(btl_event)}")
+  #   Logger.debug("msg: #{inspect(msg)}")
+  #   {:no_reply, state}
+  # end
 
   def handle_info({:btleplug_scan_started, msg}, state) do
-    # {:noreply, update_state_with_message(state, %{type: "btleplug_scan_started", uuid: "", payload: msg})}
-    new_state = update_state_with_message(state, %{type: "btleplug_scan_started", uuid: "", payload: msg})
-    IO.inspect("NEW state 1 #{inspect(new_state)}")
-    new_state = render_frame(new_state)
-    IO.inspect("NEW state 2 #{inspect(new_state)}")
-    {:noreply, new_state}
+    update_graph(state)
+    {:noreply,
+     update_state_with_message(state, %{type: "btleplug_scan_started", uuid: "", payload: msg})}
   end
 
   def handle_info({:btleplug_peripheral_discovered, uuid, props}, state) do
     # %{"address" => address, "address_type" => address, "local_name" => local_name, "manufacturer_data" => manufacturer_data, "rssi" => rssi, "service_data" => service_data, "services" => services, "tx_power_level" => tx_power_level}
-    
-    IO.inspect("NEW state 3 #{inspect(state)}")
-
-    new_state = update_state_with_message(state, %{
+    # update_graph(state)
+    {:noreply,
+     update_state_with_message(state, %{
        type: "btleplug_peripheral_discovered",
        uuid: uuid,
-       payload: props
-     })
-    
-    IO.inspect("NEW state 4 #{inspect(state)}")
-    
-    new_state 
-      |> update_graph()
-      |> render_frame()
-    
-    IO.inspect("NEW state 5 #{inspect(state)}")
-  
-  
-       
-    {:noreply, new_state }
+       payload: %{
+         local_name: props["local_name"],
+         rssi: props["rssi"],
+         #services: Map.keys(props["services"]).join(",")
+       }
+     })}
   end
 
   def handle_info({:btleplug_peripheral_connected, uuid}, state) do
     # %{"address" => address, "address_type" => address, "local_name" => local_name, "manufacturer_data" => manufacturer_data, "rssi" => rssi, "service_data" => service_data, "services" => services, "tx_power_level" => tx_power_level}
-
-    new_state = update_state_with_message(state, %{
+    update_graph(state)
+    {:noreply,
+     update_state_with_message(state, %{
        type: "btleplug_peripheral_connected",
        uuid: uuid,
        payload: ""
-     })
-      |> update_graph()
-      |> render_frame()
-    {:noreply, new_state}
+     })}
   end
 
   def handle_info({:btleplug_services_advertisement, {uuid, services}}, state) do
-    new_state = update_state_with_message(state, %{
+    {:noreply,
+     update_state_with_message(state, %{
        type: "btleplug_services_advertisement",
        uuid: uuid,
        payload: services
-     })
-      |> update_graph()
-      |> render_frame()
-    {:noreply, new_state}
+     })}
   end
 
   def handle_info({:btleplug_service_data_advertisement, {uuid, service_data}}, state) do
     # %{"0000fe2c-0000-1000-8000-00805f9b34fb" => [0, 64, 2, 1, 65, 84, 17, 118]}
-
-    new_state = update_state_with_message(state, %{
+    {:noreply,
+     update_state_with_message(state, %{
        type: "btleplug_service_data_advertisement",
        uuid: uuid,
        payload: service_data
-     })
-      |> render_frame()
-    {:noreply, new_state}
+     })}
   end
 
   def handle_info({:btleplug_peripheral_updated, uuid, props}, state) do
     # %{"0000fe2c-0000-1000-8000-00805f9b34fb" => [0, 64, 2, 1, 65, 84, 17, 118]}
-
-    new_state = update_state_with_message(state, %{
+    {:noreply,
+     update_state_with_message(state, %{
        type: "btleplug_peripheral_updated",
        uuid: uuid,
-       payload: props
-     })
-      |> render_frame()
-    {:noreply, new_state}
+       payload: %{
+         local_name: props["local_name"],
+         rssi: props["rssi"],
+         #services: Map.keys(props["services"]).join(",")
+       }
+     })}
   end
 
-  def handle_info({:btleplug_manufacturer_data_advertisement, service_data}, state) do
+  def handle_info({:btleplug_manufacturer_data_advertisement, {uuid, _data} = _service_data}, state) do
     # {"4a11a274-c1da-c0cb-7005-ca0e81e8278d", %{301 => [4, 0, 2, 2, 176, 49, 6, 1, 206, 216, 225, 241, 217, 16, 2, 0, 51, 0, 0, 0]}  
 
-    new_state = update_state_with_message(state, %{
+    
+    {:noreply,
+     update_state_with_message(state, %{
        type: "btleplug_manufacturer_data_advertisement",
        uuid: "",
-       payload: service_data
-     })
-      |> render_frame()
-    {:noreply, new_state}
+       payload: uuid
+     })}
   end
 
   def handle_info({:btleplug_characteristic_value_changed, uuid, value_data}, state) do
     # {:btleplug_characteristic_value_changed, "61d20a90-71a1-11ea-ab12-0800200c9a66", [240, 126, 167, 189]}
-    new_state = update_state_with_message(state, %{
+    {:noreply,
+     update_state_with_message(state, %{
        type: "btleplug_characteristic_value_changed",
        uuid: uuid,
        payload: value_data
-     })
-      |> render_frame()
-    {:noreply, new_state}
+     })}
   end
 
   def handle_info({:btleplug_peripheral_disconnected, uuid}, state) do
-    new_state = update_state_with_message(state, %{
+    update_graph(state)
+    {:noreply,
+     update_state_with_message(state, %{
        type: "btleplug_peripheral_disconnected",
        uuid: uuid,
        payload: ""
-     })
-      |> update_graph()
-      |> render_frame()
-    {:noreply, new_state}
+     })}
   end
 
   def handle_info({:btleplug_scan_stopped, msg}, state) do
-    # IO.puts("handle_info :btleplug_scan_stopped #{inspect(msg)}")
-    new_state = update_state_with_message(state, %{type: "btleplug_scan_stopped", uuid: "", payload: msg})
-      |> render_frame()
-    {:noreply, new_state}
+    update_graph(state)
+    {:noreply,
+     update_state_with_message(state, %{type: "btleplug_scan_stopped", uuid: "", payload: msg})}
   end
 
   def create_central() do
@@ -226,7 +233,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   def start_scan(timeout \\ @default_timeout) do
-    # Logger.debug("client :start_scan")
+    Logger.debug("client :start_scan")
     GenServer.cast(@name, {:start_scan, timeout})
   end
 
@@ -271,22 +278,22 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   def handle_cast({:start_scan, timeout}, state) do
-    # Logger.debug("handle_cast :start_scan #{inspect(state)}")
+    Logger.debug("handle_cast :start_scan #{inspect(state)}")
 
     case state.central do
       nil ->
-        # Logger.debug("No central reference to start scan.")
+        Logger.debug("No central reference to start scan.")
         {:noreply, state}
 
       central_ref ->
         # Call NIF to stop the scan using the central reference
         case RustlerBtleplug.Native.start_scan(central_ref, timeout) do
-          {:error, _reason} ->
-            # Logger.debug("Failed to start scan: #{reason}")
+          {:error, reason} ->
+            Logger.debug("Failed to start scan: #{reason}")
             {:noreply, state}
 
           _central_ref ->
-            # Logger.debug("Scan Started.")
+            Logger.debug("Scan Started.")
             Process.sleep(1000)
             {:noreply, state}
         end
@@ -410,183 +417,14 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 end
 ```
 
-<!-- livebook:{"reevaluate_automatically":true} -->
-
 ```elixir
-ble_device_name = "Pressure"
-ble_characteristic_uuid = "61d20a90-71a1-11ea-ab12-0800200c9a66"
 default_timeout = 3000
 
-defmodule BleParentSupervisor do
-  use Supervisor
-
-  def start_link(init_arg) do
-    Supervisor.start_link(__MODULE__, init_arg, name: __MODULE__)
-  end
-
-  @impl true
-  def init(_init_arg) do
-    IO.puts("Starting Supervisor: #{inspect(__MODULE__)}")
-
-    children = [
-      RustlerBtleplug.GenserverLiveBook
-    ]
-
-    Supervisor.init(children, strategy: :one_for_one)
-  end
-end
-
-if is_pid(Process.whereis(BleParentSupervisor)) do
-  Supervisor.stop(BleParentSupervisor)
-end
-
-# Start the supervision tree
-sup_pid = BleParentSupervisor.start_link([])
-
-# Process.alive?(:ble_genserver)
-# Output the supervision tree
-Kino.Process.sup_tree(BleParentSupervisor)
-
-
+frame = Kino.Frame.new()
+Kino.start_child!({RustlerBtleplug.GenserverLiveBook, frame})
 {:ok, central_ref} = RustlerBtleplug.GenserverLiveBook.create_central()
-  IO.puts("Is central_ref a reference: #{inspect(is_reference(central_ref))}")
-  RustlerBtleplug.GenserverLiveBook.start_scan(default_timeout)
-  Process.sleep(1000)
-  RustlerBtleplug.GenserverLiveBook.find_peripheral_by_name(ble_device_name, 10000)
-  Process.sleep(1000)
+IO.puts("Is central_ref a reference: #{inspect(is_reference(central_ref))}")
+RustlerBtleplug.GenserverLiveBook.start_scan(default_timeout)
 
-  RustlerBtleplug.GenserverLiveBook.connect(default_timeout)
-  # Process.sleep(5000)
-  RustlerBtleplug.GenserverLiveBook.subscribe(ble_characteristic_uuid, default_timeout)
-
-  Process.sleep(10000)
-  RustlerBtleplug.GenserverLiveBook.disconnect(default_timeout)
-
-#Kino.Process.render_seq_trace(self(), fn ->
-  
-#end)
-
-# Kino.Process.app_tree(:logger)
-# RustlerBtleplug.Demo.start()
-```
-
-<!-- livebook:{"reevaluate_automatically":true} -->
-
-```elixir
-require Logger
-alias RustlerBtleplug.Native
-
-defmodule RustlerBtleplug.Demo do
-  def start(
-        device_name \\ "Pressure",
-        characteristic_uuid \\ "61d20a90-71a1-11ea-ab12-0800200c9a66"
-      ) do
-    central =
-      Native.create_central()
-      |> Native.start_scan(5000)
-
-    Process.sleep(1000)
-
-    peripheral =
-      Native.find_peripheral_by_name(central, device_name)
-      |> Native.connect()
-      |> Native.subscribe(characteristic_uuid)
-
-    # peripheral = Native.find_peripheral(central, "uuid")
-
-    # peripheral = Native.connect(peripheral)
-    # _peripheral = Native.subscribe(peripheral, characteristic_uuid)
-
-    Process.sleep(1000)
-
-    graphviz_str = Native.get_adapter_state_graph(central)
-    Kino.Mermaid.new(graphviz_str)
-
-    peripheral
-    |> Native.disconnect()
-
-    # peripheral = Native.disconnect(peripheral)
-    # Native.unsubscribe(peripheral, "61d20a90-71a1-11ea-ab12-0800200c9a66")
-  end
-end
-
-RustlerBtleplug.Demo.start()
-```
-
-```elixir
-frame = Kino.Frame.new() |> Kino.render()
-
-# for i <- 1..100 do
-##  Kino.Frame.render(frame, i)
-# Process.sleep(50)
-# end
-
-data = [
-  %{name: "Elixir", website: "https://elixir-lang.org"},
-  %{name: "Erlang", website: "https://www.erlang.org"}
-]
-
-Kino.DataTable.new(data)
-
-# data = Process.info(self())
-# Kino.Tree.new(data)
-```
-
-```elixir
-Kino.Mermaid.new("""
-graph TD;
-  A<--B;
-  A-->C;
-  BCC-->D;
-  B-->D;
-  B-->D;
-  C-->D;
-""")
-
-Kino.Mermaid.new("""
-architecture-beta
-group api(cloud)[API]
-
-service db(database)[Database] in api
-service disk1(disk)[Storage] in api
-service disk2(disk)[Storage] in api
-service server(server)[Server] in api
-
-db:L -- R:server
-disk1:T -- B:server
-disk2:T -- B:db
-""")
-
-test =
-  Kino.Mermaid.new("""
-  ---
-  config:
-    layout: elk
-    look: handDrawn
-    theme: dark
-  ---
-  mindmap
-      Root
-          A
-              B
-              C
-  """)
-
-Kino.Mermaid.new("""
----
-config:
-  layout: elk
-  look: handDrawn
-  
----
-graph TD
-    Adapter["Adapter: CoreBluetooth"]
-    Adapter --> 4a38bf67-36b6-8532-0264-6f768b1c66e2["Peripheral: PressureSensor<br>RSSI: -54dBm<br>TX Power: N/A"]
-    Adapter --> 78550c6b-dfbe-aba2-8307-fa12fab836c8["Peripheral: 78550c6b-dfbe-aba2-8307-fa12fab836c8<br>RSSI: -97dBm<br>TX Power: N/A"]
-    Adapter --> 9e63611a-abd0-72bf-438e-c038217203c3["Peripheral: 9e63611a-abd0-72bf-438e-c038217203c3<br>RSSI: -71dBm<br>TX Power: N/A"]
-    Adapter --> 555c5f00-7a46-ebe9-ce2d-5ad7a4bf85e8["Peripheral: 555c5f00-7a46-ebe9-ce2d-5ad7a4bf85e8<br>RSSI: -93dBm<br>TX Power: N/A"]
-    Adapter --> b480e9ef-38bb-eeab-f910-015c979dc0da["Peripheral: Apple TV<br>RSSI: -90dBm<br>TX Power: N/A"]
-    Adapter --> 4a11a274-c1da-c0cb-7005-ca0e81e8278d["Peripheral: LE_WH-XB910N<br>RSSI: -46dBm<br>TX Power: N/A"]
-
-""")
+frame
 ```

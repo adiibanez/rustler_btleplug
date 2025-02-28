@@ -59,7 +59,7 @@ defmodule RustlerBtleplug.NativeBlestateTest do
     |> Native.connect()
     |> Native.subscribe(@ble_characteristic_uuid)
 
-    Process.sleep(1000)
+    Process.sleep(2000)
 
     assert is_reference(peripheral_resource)
     state_map = Native.get_adapter_state_map(central_resource)

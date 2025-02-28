@@ -2,7 +2,7 @@
 use crate::central_manager_state::CentralRef;
 use crate::central_manager_utils::{get_peripheral_properties, properties_to_map};
 
-use rustler::{Encoder, Env, Error as RustlerError, ResourceArc, Term, NifStruct, NifMap};
+use rustler::{Encoder, Env, Error as RustlerError, NifMap, NifStruct, ResourceArc, Term};
 //use serde_rustler::{from_term, to_term};
 use std::collections::HashMap;
 
@@ -60,7 +60,6 @@ struct AdapterState {
     peripherals: Vec<PeripheralInfo>, // **Now a list instead of a HashMap**
 }
 
-/// ✅ **Nif Function: Fetch Adapter State (Returns Nested Hierarchy)**
 #[rustler::nif(schedule = "DirtyIo")]
 pub fn get_adapter_state_map(
     env: Env<'_>,
@@ -73,7 +72,6 @@ pub fn get_adapter_state_map(
         (central_state.adapter.clone(), central_state.pid)
     };
 
-    // **Ensure the async function runs synchronously**
     let adapter_state = tokio::task::block_in_place(|| {
         let runtime = tokio::runtime::Runtime::new().expect("Failed to create runtime");
         runtime.block_on(adapter_state_to_map(&adapter))
@@ -83,7 +81,7 @@ pub fn get_adapter_state_map(
 }
 
 async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
-    // 1️⃣ Adapter Info
+    // 1️⃣ Fetch Adapter Information
     let adapter_info = AdapterInfo {
         name: adapter
             .adapter_info()
@@ -91,17 +89,17 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
             .unwrap_or_else(|_| "Unknown Adapter".to_string()),
     };
 
-    // 2️⃣ Fetch Peripherals
+    // 2️⃣ Get Live Peripherals
     let peripherals = adapter.peripherals().await.unwrap_or_default();
     let mut peripheral_list = Vec::new();
 
     for peripheral in peripherals.iter() {
         let peripheral_id = peripheral.id().to_string();
 
-        // 🔍 **Ensure we fetch live properties**
+        // 🔍 Fetch Peripheral Properties
         let properties = match get_peripheral_properties(adapter, &peripheral_id).await {
             Some((_, props)) => props,
-            None => continue, // **Skip if no properties found**
+            None => continue, // Skip if no properties found
         };
 
         let mut peripheral_info = PeripheralInfo {
@@ -109,19 +107,20 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
             name: properties.local_name.unwrap_or(peripheral_id.clone()),
             rssi: properties.rssi,
             tx_power: properties.tx_power_level,
-            services: vec![], // ✅ Will be updated below
+            services: vec![], // ✅ Services will be populated next
         };
 
-        // 3️⃣ **Explicitly Trigger Service Discovery** before fetching services
+        // 3️⃣ **Force Service Discovery**
         if let Err(e) = peripheral.discover_services().await {
-            warn!("❌ Failed to discover services for {}: {:?}", peripheral_id, e);
+            warn!(
+                "❌ Failed to discover services for {}: {:?}",
+                peripheral_id, e
+            );
         }
 
         // 4️⃣ Fetch Services
         let mut service_list = Vec::new();
-        let services = peripheral.services(); // ✅ Now this should return valid data
-
-        for service in services.iter() {
+        for service in peripheral.services().iter() {
             let service_id = service.uuid.to_string();
 
             // 5️⃣ Fetch Characteristics
@@ -129,10 +128,26 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
             for char in service.characteristics.iter() {
                 let char_id = char.uuid.to_string();
                 let char_props = [
-                    if char.properties.contains(CharPropFlags::READ) { "Read" } else { "" },
-                    if char.properties.contains(CharPropFlags::WRITE) { "Write" } else { "" },
-                    if char.properties.contains(CharPropFlags::NOTIFY) { "Notify" } else { "" },
-                    if char.properties.contains(CharPropFlags::INDICATE) { "Indicate" } else { "" },
+                    if char.properties.contains(CharPropFlags::READ) {
+                        "Read"
+                    } else {
+                        ""
+                    },
+                    if char.properties.contains(CharPropFlags::WRITE) {
+                        "Write"
+                    } else {
+                        ""
+                    },
+                    if char.properties.contains(CharPropFlags::NOTIFY) {
+                        "Notify"
+                    } else {
+                        ""
+                    },
+                    if char.properties.contains(CharPropFlags::INDICATE) {
+                        "Indicate"
+                    } else {
+                        ""
+                    },
                 ]
                 .iter()
                 .filter(|s| !s.is_empty())
@@ -152,7 +167,7 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
             });
         }
 
-        // ✅ Update peripheral info with fetched services
+        // ✅ Attach Services to Peripheral
         peripheral_info.services = service_list;
         peripheral_list.push(peripheral_info);
     }
@@ -162,8 +177,6 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
         peripherals: peripheral_list,
     }
 }
-
-
 
 #[rustler::nif]
 pub fn get_adapter_state_graph(
@@ -195,8 +208,6 @@ pub fn get_adapter_state_graph(
         ))),
     }
 }
-
-
 
 pub async fn adapter_state_to_mermaid_mindmap(adapter: &Adapter) -> String {
     let mut output = String::from("mindmap\n");

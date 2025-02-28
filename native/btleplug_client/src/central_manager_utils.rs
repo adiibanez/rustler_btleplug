@@ -1,7 +1,7 @@
 #![allow(unused_imports)]
 use crate::central_manager_state::CentralRef;
 
-use rustler::{Encoder, Env, Error as RustlerError, ResourceArc, Term, NifStruct};
+use rustler::{Encoder, Env, Error as RustlerError, NifStruct, ResourceArc, Term};
 //use serde_rustler::{from_term, to_term};
 use std::collections::HashMap;
 

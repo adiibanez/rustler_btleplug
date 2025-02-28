@@ -8,10 +8,9 @@ use crate::central_manager_utils::*;
 
 use log::{debug, info, warn};
 use rustler::{Encoder, Env, Error as RustlerError, LocalPid, OwnedEnv, ResourceArc};
-use std::collections::HashMap;
 
 use btleplug::api::{Central, CentralEvent, Manager as _, Peripheral, ScanFilter};
-use btleplug::platform::Manager;
+use btleplug::platform::{Adapter, Manager};
 use futures::StreamExt;
 
 use crate::RUNTIME;
@@ -39,7 +38,7 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
     let adapter = adapters.into_iter().next().unwrap();
     let adapter_clone = adapter.clone();
     let adapter_info = RUNTIME.block_on(adapter.adapter_info());
-    info!("Adapter initialized: {:?}", adapter_info);
+    info!("✅ Adapter initialized: {:?}", adapter_info);
 
     let (event_sender, event_receiver) = mpsc::channel::<CentralEvent>(100);
     let event_receiver = Arc::new(RwLock::new(event_receiver));
@@ -49,170 +48,137 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
     let state =
         CentralManagerState::new(pid, manager, adapter.clone(), event_sender, event_receiver);
     let resource = ResourceArc::new(CentralRef(Arc::new(Mutex::new(state))));
-    // let pid = env.pid();
 
-    // Spawn a task to handle adapter events
+    // 🛠️ **Spawn event handler**
     RUNTIME.spawn(async move {
-        debug!("Starting adapter event handler...");
+        debug!("🎧 Listening for adapter events...");
         let mut events = match adapter.events().await {
             Ok(events) => events,
             Err(e) => {
-                debug!("Failed to get adapter events: {:?}", e);
+                debug!("❌ Failed to get adapter events: {:?}", e);
                 return;
             }
         };
 
         while let Some(event) = events.next().await {
-            debug!("Received adapter event: {:?}", event);
+            debug!("🔔 Adapter Event: {:?}", event);
             if let Err(e) = event_sender_clone.send(event).await {
-                debug!("Failed to forward event: {:?}", e);
+                debug!("⚠️ Failed to forward event: {:?}", e);
                 break;
             }
         }
-        debug!("Adapter event handler closed");
+        debug!("📴 Adapter event handler closed");
     });
 
+    // 🏷️ **Handle BLE Events**
     RUNTIME.spawn(async move {
-        debug!("Starting event receiver handler...");
+        debug!("🎧 Listening for BLE events...");
         let mut receiver = event_receiver_clone.write().await;
 
         while let Some(event) = receiver.recv().await {
             let mut msg_env = OwnedEnv::new();
+
             match event {
+                // ✅ **Device Discovered**
                 CentralEvent::DeviceDiscovered(id) => {
                     let uuid = id.to_string();
-                    info!("🔍 Device discovered - UUID: {}", uuid);
+                    info!("🔍 Device discovered: {}", uuid);
 
-                    if let Some((peripheral, properties)) =
-                        get_peripheral_properties(&adapter_clone, &uuid).await
-                    {
+                    if let Some(peripheral) = find_peripheral_by_uuid(&adapter_clone, &uuid).await {
+                        // 🔄 Ensure service discovery
+                        if let Err(e) = peripheral.discover_services().await {
+                            warn!("⚠️ Failed to discover services for {}: {:?}", uuid, e);
+                        }
+
+                        let properties_opt = peripheral.properties().await.ok().flatten();
                         let is_connected = peripheral.is_connected().await.unwrap_or(false);
+
                         debug!(
                             "🔍 Peripheral: {:?}, Connected: {:?}",
-                            properties.local_name, is_connected
+                            properties_opt.as_ref().and_then(|p| p.local_name.clone()),
+                            is_connected
                         );
-                        debug_properties(&properties);
 
                         match msg_env.send_and_clear(&pid, |env| {
                             (
                                 atoms::btleplug_peripheral_discovered(),
                                 uuid,
-                                properties_to_map(env, &properties),
+                                properties_opt
+                                    .as_ref()
+                                    .map(|props| properties_to_map(env, props))
+                                    .unwrap_or_else(|| rustler::types::atom::nil().encode(env)),
                             )
                                 .encode(env)
                         }) {
-                            Ok(_) => debug!("✅ Successfully sent device discovery message"),
-                            Err(e) => debug!(
-                                "⚠️ Failed to send device discovery message (Error: {:?}). \
-                This might happen if the Elixir process has terminated.",
-                                e
-                            ),
+                            Ok(_) => debug!("✅ Sent device discovery message"),
+                            Err(e) => debug!("⚠️ Failed to send discovery message: {:?}", e),
                         }
                     } else {
-                        warn!(
-                            "❌ Could not retrieve properties for discovered peripheral: {}",
-                            uuid
-                        );
+                        warn!("❌ Could not find peripheral: {}", uuid);
                     }
                 }
+
+                // ✅ **Device Updated**
+                CentralEvent::DeviceUpdated(id) => {
+                    let uuid = id.to_string();
+                    info!("🔄 Device updated: {}", uuid);
+
+                    if let Some(peripheral) = find_peripheral_by_uuid(&adapter_clone, &uuid).await {
+                        let properties_opt = peripheral.properties().await.ok().flatten();
+                        let is_connected = peripheral.is_connected().await.unwrap_or(false);
+
+                        debug!(
+                            "🔄 Updated Peripheral: {:?} (Connected: {:?})",
+                            properties_opt.as_ref().and_then(|p| p.local_name.clone()),
+                            is_connected
+                        );
+
+                        match msg_env.send_and_clear(&pid, |env| {
+                            (
+                                atoms::btleplug_peripheral_updated(),
+                                uuid,
+                                properties_opt
+                                    .as_ref()
+                                    .map(|props| properties_to_map(env, props))
+                                    .unwrap_or_else(|| rustler::types::atom::nil().encode(env)),
+                            )
+                                .encode(env)
+                        }) {
+                            Ok(_) => debug!("✅ Sent device updated message"),
+                            Err(e) => debug!("⚠️ Failed to send update message: {:?}", e),
+                        }
+                    } else {
+                        warn!("❌ Could not find peripheral: {}", uuid);
+                    }
+                }
+
+                // ✅ **Device Connected**
                 CentralEvent::DeviceConnected(id) => {
                     let uuid = id.to_string();
-                    info!("Device connected - UUID: {}", uuid);
+                    info!("🔗 Device connected: {}", uuid);
                     match msg_env.send_and_clear(&pid, |env| {
                         (atoms::btleplug_peripheral_connected(), uuid).encode(env)
                     }) {
-                        Ok(_) => debug!("Successfully sent device connected message"),
-                        Err(e) => debug!(
-                            "Failed to send device connected message (Error: {:?}). \
-                    This might happen if the Elixir process has terminated.",
-                            e
-                        ),
+                        Ok(_) => debug!("✅ Sent device connected message"),
+                        Err(e) => debug!("⚠️ Failed to send connected message: {:?}", e),
                     }
                 }
+
+                // ✅ **Device Disconnected**
                 CentralEvent::DeviceDisconnected(id) => {
                     let uuid = id.to_string();
-                    info!("Device disconnected - UUID: {}", uuid);
+                    info!("❌ Device disconnected: {}", uuid);
                     match msg_env.send_and_clear(&pid, |env| {
                         (atoms::btleplug_peripheral_disconnected(), uuid).encode(env)
                     }) {
-                        Ok(_) => debug!("Successfully sent device disconnected message"),
-                        Err(e) => debug!(
-                            "Failed to send device disconnected message (Error: {:?}). \
-                    This might happen if the Elixir process has terminated.",
-                            e
-                        ),
+                        Ok(_) => debug!("✅ Sent device disconnected message"),
+                        Err(e) => debug!("⚠️ Failed to send disconnected message: {:?}", e),
                     }
                 }
-                CentralEvent::ManufacturerDataAdvertisement {
-                    id,
-                    manufacturer_data,
-                } => {
-                    let uuid = id.to_string();
-                    debug!(
-                        "Manufacturer data from UUID: {} - Data: {:?}",
-                        uuid, manufacturer_data
-                    );
-                    match msg_env.send_and_clear(&pid, |env| {
-                        (
-                            atoms::btleplug_manufacturer_data_advertisement(),
-                            (uuid, manufacturer_data),
-                        )
-                            .encode(env)
-                    }) {
-                        Ok(_) => debug!("Successfully sent manufacturer data message"),
-                        Err(e) => debug!(
-                            "Failed to send manufacturer data message (Error: {:?}). \
-                    This might happen if the Elixir process has terminated.",
-                            e
-                        ),
-                    }
-                }
-                CentralEvent::ServiceDataAdvertisement { id, service_data } => {
-                    let uuid = id.to_string();
-                    debug!(
-                        "Service data from UUID: {} - Data: {:?}",
-                        uuid, service_data
-                    );
 
-                    // Convert the HashMap with Uuid keys to String keys
-                    let converted_data: HashMap<String, Vec<u8>> = service_data
-                        .into_iter()
-                        .map(|(k, v)| (k.to_string(), v))
-                        .collect();
-
-                    match msg_env.send_and_clear(&pid, |env| {
-                        (
-                            atoms::btleplug_service_data_advertisement(),
-                            (uuid, converted_data),
-                        )
-                            .encode(env)
-                    }) {
-                        Ok(_) => debug!("Successfully sent service data message"),
-                        Err(e) => debug!(
-                            "Failed to send service data message (Error: {:?}). \
-            This might happen if the Elixir process has terminated.",
-                            e
-                        ),
-                    }
-                }
-                CentralEvent::ServicesAdvertisement { id, services } => {
-                    let uuid = id.to_string();
-                    let services: Vec<String> =
-                        services.into_iter().map(|s| s.to_string()).collect();
-                    debug!("Services from UUID: {} - Services: {:?}", uuid, services);
-                    match msg_env.send_and_clear(&pid, |env| {
-                        (atoms::btleplug_services_advertisement(), (uuid, services)).encode(env)
-                    }) {
-                        Ok(_) => debug!("Successfully sent services message"),
-                        Err(e) => debug!(
-                            "Failed to send services message (Error: {:?}). \
-                    This might happen if the Elixir process has terminated.",
-                            e
-                        ),
-                    }
-                }
+                // ✅ **Adapter State Changed**
                 CentralEvent::StateUpdate(state) => {
-                    debug!("Adapter state changed: {:?}", state);
+                    debug!("🔄 Adapter state changed: {:?}", state);
                     match msg_env.send_and_clear(&pid, |env| {
                         (
                             atoms::btleplug_adapter_status_update(),
@@ -220,59 +186,29 @@ pub fn create_central(env: Env, pid: LocalPid) -> Result<ResourceArc<CentralRef>
                         )
                             .encode(env)
                     }) {
-                        Ok(_) => debug!("Successfully sent state update message"),
-                        Err(e) => debug!(
-                            "Failed to send state update message (Error: {:?}). \
-                    This might happen if the Elixir process has terminated.",
-                            e
-                        ),
+                        Ok(_) => debug!("✅ Sent state update message"),
+                        Err(e) => debug!("⚠️ Failed to send state update message: {:?}", e),
                     }
                 }
-                CentralEvent::DeviceUpdated(id) => {
-                    let uuid = id.to_string();
-                    debug!("Device updated - UUID: {}", uuid);
 
-                    if let Some((peripheral, properties)) =
-                        get_peripheral_properties(&adapter_clone, &uuid).await
-                    {
-                        let is_connected = peripheral.is_connected().await.unwrap_or(false);
-                        debug!(
-                            "🔍 Peripheral Updated: {:?}: is_connected: {:?}",
-                            properties.local_name, is_connected
-                        );
-
-                        debug_properties(&properties);
-
-                        match msg_env.send_and_clear(&pid, |env| {
-                            (
-                                atoms::btleplug_peripheral_updated(),
-                                uuid,
-                                properties_to_map(env, &properties),
-                            )
-                                .encode(env)
-                        }) {
-                            Ok(_) => debug!("✅ Successfully sent device discovery message"),
-                            Err(e) => debug!(
-                                "⚠️ Failed to send device discovery message (Error: {:?}). \
-                This might happen if the Elixir process has terminated.",
-                                e
-                            ),
-                        }
-                    } else {
-                        warn!(
-                            "❌ Could not retrieve properties for discovered peripheral: {}",
-                            uuid
-                        );
-                    }
-                } // _ => {
-                  //     debug!("Other event: {:?}", event);
-                  // }
+                _ => debug!("🆕 Other event: {:?}", event),
             }
         }
-        debug!("Event receiver closed.");
+        debug!("📴 Event receiver closed.");
     });
 
     Ok(resource)
+}
+
+/// 🔎 **Find a Peripheral by UUID Using Adapter's Live Data**
+async fn find_peripheral_by_uuid(
+    adapter: &Adapter,
+    target_uuid: &str,
+) -> Option<btleplug::platform::Peripheral> {
+    let peripherals = adapter.peripherals().await.ok()?;
+    peripherals
+        .into_iter()
+        .find(|p| p.id().to_string() == target_uuid)
 }
 
 #[rustler::nif]

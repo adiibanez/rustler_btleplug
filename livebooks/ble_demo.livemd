@@ -3,13 +3,89 @@
 ```elixir
 Mix.install([
   {:kino, "~> 0.15.2"},
-  {:rustler_btleplug, "~> 0.0.10-alpha"},
+  {:rustler_btleplug, "~> 0.0.11-alpha"},
 ])
 ```
 
 ## Section
 
 ```elixir
+defmodule RustlerBtleplug.Mermaid do
+  @doc """
+  Converts adapter state into a valid Mermaid.js format with grouped connected/disconnected devices.
+  """
+  def to_mermaid(%{adapter: adapter, peripherals: peripherals} = adapter_state) do
+
+    IO.puts(inspect(adapter_state))
+    adapter_name = normalize_id(adapter.name)
+    connected_node = "node_connected((\"Connected Devices\"))"
+    disconnected_node = "node_disconnected((\"Disconnected Devices\"))"
+
+    # Define Mermaid Graph Start
+    mermaid_base = [
+      #"graph TD",
+      "graph LR",
+      "classDef connected fill:#bbf,stroke:#00f,stroke-width:2px;",
+      "classDef disconnected fill:#eee,stroke:#888,stroke-dasharray:5;",
+      "#{adapter_name}((\"Adapter: #{adapter.name}\"))",
+      "#{adapter_name} --> #{connected_node}",
+      "#{adapter_name} --> #{disconnected_node}"
+    ]
+
+    # Grouped processing for peripherals
+    {connected_peripherals, disconnected_peripherals} =
+      Enum.split_with(peripherals, fn p -> p.is_connected == true end)
+
+    mermaid_connected =
+      Enum.map(connected_peripherals, fn peripheral ->
+        peripheral_id = normalize_id(peripheral.id)
+        peripheral_label = "Peripheral: #{peripheral.name} (RSSI: #{peripheral.rssi || "N/A"})"
+        entry = "node_connected --> #{peripheral_id}[\"#{peripheral_label}\"]:::connected"
+
+        services = process_services(peripheral_id, peripheral.services)
+        [entry | services]
+      end)
+
+    mermaid_disconnected =
+      Enum.map(disconnected_peripherals, fn peripheral ->
+        peripheral_id = normalize_id(peripheral.id)
+        peripheral_label = "Peripheral: #{peripheral.name} (RSSI: #{peripheral.rssi || "N/A"})"
+        entry = "node_disconnected -.-> #{peripheral_id}[\"#{peripheral_label}\"]:::disconnected"
+
+        services = process_services(peripheral_id, peripheral.services)
+        [entry | services]
+      end)
+
+    # Join all parts and return the Mermaid string
+    (mermaid_base ++ List.flatten(mermaid_connected) ++ List.flatten(mermaid_disconnected))
+    |> Enum.join("\n")
+  end
+
+  # Processes services and characteristics
+  defp process_services(peripheral_id, services) do
+    Enum.flat_map(services, fn service ->
+      service_id = normalize_id(service.uuid)
+      service_entry = "#{peripheral_id} --> #{service_id}{{\"Service: #{service.uuid}\"}}"
+
+      characteristics =
+        Enum.map(service.characteristics, fn char ->
+          char_id = normalize_id(char.uuid)
+          properties = Enum.join(char.properties, ", ")
+          "#{service_id} --> #{char_id}([\"Characteristic: #{char.uuid} (#{properties})\"])"
+        end)
+
+      [service_entry | characteristics]
+    end)
+  end
+
+  # Normalizes node IDs by prefixing them to avoid Mermaid syntax errors
+  defp normalize_id(id) do
+    "node_" <> String.replace(id, "-", "_")
+  end
+end
+
+
+
 defmodule RustlerBtleplug.GenserverLiveBook do
   @name :ble_genserver_livebook
 
@@ -37,9 +113,23 @@ defmodule RustlerBtleplug.GenserverLiveBook do
     {:ok, state, {:continue, :setup}}
   end
 
+  def format_datatable(key, value) do
+    case key do
+      #:type -> value
+      #:uuid -> value
+      :payload -> {:ok, "#{value |> String.slice(0..20)} ..." |> dbg()}
+      _ -> {:ok, value}
+    end
+  end
+
   def handle_continue(_, state) do
     graph_frame = Kino.Frame.new()
-    datatable = Kino.DataTable.new([], keys: [:type, :uuid, :payload], name: "Ble messages", num_rows: 30)
+    datatable = Kino.DataTable.new(
+      [], 
+      keys: [:type, :uuid, :payload],
+      formatter: &format_datatable/2,
+      name: "Ble messages", num_rows: 30
+    )
     Kino.Frame.render(state.frame, Kino.Layout.grid([graph_frame, datatable]))
 
     {:noreply,
@@ -97,8 +187,11 @@ defmodule RustlerBtleplug.GenserverLiveBook do
         case state.graph_timer do
           nil ->
             #IO.puts(":update_graph, draw graph")
-            graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central) # , "graph"
-            graph = Kino.Mermaid.new(graphviz_str)
+            #graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central) # , "graph"
+
+            adapter_state = RustlerBtleplug.Native.get_adapter_state_map(state.central)
+            mermaid_text = RustlerBtleplug.Mermaid.to_mermaid(adapter_state)
+            graph = Kino.Mermaid.new(mermaid_text)
             Kino.Frame.render(state.graph_frame, graph)
 
             timer_ref = Process.send_after(self(), :graph_timer_expired, @graph_debounce)

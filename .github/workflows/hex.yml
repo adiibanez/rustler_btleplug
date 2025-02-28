@@ -40,16 +40,16 @@ jobs:
           
       - name: Generate rustler_precompiled checksum file
         run: |
-          # ensure a checksum file locally
+          # ensure a checksum file locally, TODO replace with cached file to avoid recompilation of rust 
           RUSTLER_BTLEPLUG_BUILD=1 mix rustler_precompiled.download RustlerBtleplug.Native --only-local
           # get all nifs
           mix rustler_precompiled.download RustlerBtleplug.Native --all --ignore-unavailable
 
       - name: Build Hex.pm package
-        run: mix hex.build
+        run: MIX_ENV=dev mix hex.build
         
       - name: Publish to Hex.pm
         if: github.event_name == 'workflow_dispatch'
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
-        run: mix hex.publish --yes --replace
+        run: MIX_ENV=dev mix hex.publish --yes --replace

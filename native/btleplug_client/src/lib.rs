@@ -29,6 +29,7 @@ mod atoms;
 mod central_manager;
 mod central_manager_finder;
 mod central_manager_state;
+mod central_manager_state_utils;
 mod central_manager_utils;
 mod logging;
 mod peripheral;

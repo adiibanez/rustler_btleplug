@@ -1,0 +1,19 @@
+Mix.install([
+  {:kino,
+   path: "/Users/adrianibanez/Documents/projects/2024_sensor-platform/checkouts/kino",
+  },
+  #{:mix_install_watcher, "~> 0.1.0"},
+  # {:kino, "~> 0.15.2"},
+  # {:rustler_btleplug, "~> 0.0.10-alpha"}
+  {:rustler_btleplug,
+   path: "/Users/adrianibanez/Documents/projects/2024_sensor-platform/checkouts/rustler_btleplug",
+  },
+  {:rustler, "~> 0.36.1", optional: true}
+])
+
+
+
+Mix.install([
+  {:kino, "~> 0.15.2"},
+  {:rustler_btleplug, "~> 0.0.10-alpha"},
+])

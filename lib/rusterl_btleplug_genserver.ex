@@ -1,4 +1,5 @@
 defmodule RustlerBtleplug.Genserver do
+  @moduledoc false
   @name :ble_genserver
 
   use GenServer

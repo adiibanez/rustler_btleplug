@@ -101,7 +101,8 @@ defmodule RustlerBtleplug.MixProject do
     [
       {:rustler, ">= 0.31.0", optional: true},
       {:rustler_precompiled, "~> 0.7"},
-      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false}
+      {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
     ]
   end
 end

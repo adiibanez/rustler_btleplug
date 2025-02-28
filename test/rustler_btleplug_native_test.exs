@@ -84,9 +84,9 @@ defmodule RustlerBtleplug.NativeTest do
     # assert resource |> Native.is_scanning()
     assert_receive {:btleplug_scan_started, _msg}
 
-    Process.sleep(500)
-    messages = :erlang.process_info(self(), :messages)
-    IO.inspect(messages, label: "messages")
+    #Process.sleep(500)
+    #messages = :erlang.process_info(self(), :messages)
+    #IO.inspect(messages, label: "messages")
 
     receive do
       {:btleplug_peripheral_discovered, _msg, _props} ->

@@ -1,4 +1,6 @@
 defmodule RustlerBtleplug.Native do
+  @moduledoc false
+  
   version = Mix.Project.config()[:version]
 
   # use Rustler,

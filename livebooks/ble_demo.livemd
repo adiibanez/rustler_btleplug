@@ -4,7 +4,6 @@
 Mix.install([
   {:kino, "~> 0.15.2"},
   {:rustler_btleplug, "~> 0.0.10-alpha"},
-  {:rustler, "~> 0.36.1", optional: true}
 ])
 ```
 
@@ -40,7 +39,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 
   def handle_continue(_, state) do
     graph_frame = Kino.Frame.new()
-    datatable = Kino.DataTable.new([], keys: [:type, :uuid, :payload])
+    datatable = Kino.DataTable.new([], keys: [:type, :uuid, :payload], name: "Ble messages", num_rows: 30)
     Kino.Frame.render(state.frame, Kino.Layout.grid([graph_frame, datatable]))
 
     {:noreply,
@@ -73,14 +72,15 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 
   def update_state_with_message(state, msg) do
     formatted_payload = format_payload(msg.payload)
-    formatted_msg = msg |>
-      Map.put(:payload, formatted_payload )
+    formatted_msg = msg 
+      |> Map.put(:payload, formatted_payload )
+      |> Map.put(:type, String.replace(msg.type, "btleplug_", ""))
     
     #IO.puts(inspect(formatted_msg))
 
-    new_state = %{state | ble_messages: Enum.take([formatted_msg | state.ble_messages], 100)}
+    new_state = %{state | ble_messages: Enum.take([formatted_msg | state.ble_messages], 50)}
     
-    Kino.DataTable.update(state.datatable, new_state.ble_messages)
+    Kino.DataTable.update(state.datatable, new_state.ble_messages, keys: [:type, :uuid, :payload])
     new_state
   end
   
@@ -91,13 +91,13 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   def handle_info(:update_graph, state) do
     case state.central do
       nil ->
-        IO.puts(":update_graph, no central")
+        #IO.puts(":update_graph, no central")
         {:noreply, state}
       _ ->
         case state.graph_timer do
           nil ->
-            IO.puts(":update_graph, draw graph")
-            graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central)
+            #IO.puts(":update_graph, draw graph")
+            graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central) # , "graph"
             graph = Kino.Mermaid.new(graphviz_str)
             Kino.Frame.render(state.graph_frame, graph)
 
@@ -221,7 +221,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   def start_scan(timeout \\ @default_timeout) do
-    Logger.debug("client :start_scan")
+    #Logger.debug("client :start_scan")
     GenServer.cast(@name, {:start_scan, timeout})
   end
 
@@ -266,11 +266,11 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   def handle_cast({:start_scan, timeout}, state) do
-    Logger.debug("handle_cast :start_scan #{inspect(state)}")
+    #Logger.debug("handle_cast :start_scan #{inspect(state)}")
 
     case state.central do
       nil ->
-        Logger.debug("No central reference to start scan.")
+        #Logger.debug("No central reference to start scan.")
         {:noreply, state}
 
       central_ref ->
@@ -281,7 +281,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
             {:noreply, state}
 
           _central_ref ->
-            Logger.debug("Scan Started.")
+            #Logger.debug("Scan Started.")
             Process.sleep(1000)
             {:noreply, state}
         end
@@ -409,21 +409,49 @@ end
 default_timeout = 3000
 
 frame = Kino.Frame.new()
-Kino.start_child!({RustlerBtleplug.GenserverLiveBook, frame})
+ble_frame = Kino.Frame.new()
+
+btn_scan = Kino.Control.button("Scan")
+btn_stop_scan = Kino.Control.button("Stop scan")
+btn_conn = Kino.Control.button("Connect and subscribe")
+btn_disconn = Kino.Control.button("Disconnect")
+
+select_peripherals = Kino.Input.select("Peripherals", [en: "English", fr: "Français"])
+
+Kino.Frame.append(frame, 
+  Kino.Layout.grid([btn_scan, btn_stop_scan, btn_conn, btn_disconn, select_peripherals], columns: 4)
+)
+
+Kino.Frame.append(frame, 
+  Kino.Layout.grid([ble_frame], columns: 1)
+)
+
+Kino.start_child!({RustlerBtleplug.GenserverLiveBook, ble_frame})
 {:ok, central_ref} = RustlerBtleplug.GenserverLiveBook.create_central()
-IO.puts("Is central_ref a reference: #{inspect(is_reference(central_ref))}")
-RustlerBtleplug.GenserverLiveBook.start_scan()
+#IO.puts("Is central_ref a reference: #{inspect(is_reference(central_ref))}")
 
-
-Task.start(fn ->
-  Process.sleep(1000)
-  RustlerBtleplug.GenserverLiveBook.find_peripheral_by_name("Pressure")
-  RustlerBtleplug.GenserverLiveBook.connect()
-  RustlerBtleplug.GenserverLiveBook.subscribe("61d20a90-71a1-11ea-ab12-0800200c9a66")
+Kino.listen(btn_scan, fn _event -> 
+  #IO.inspect(event) 
+  RustlerBtleplug.GenserverLiveBook.start_scan()
 end)
 
-Task.start(fn ->
-  Process.sleep(10000)
+Kino.listen(btn_stop_scan, fn _event -> 
+  #IO.inspect(event) 
+  RustlerBtleplug.GenserverLiveBook.stop_scan()
+end)
+
+Kino.listen(btn_conn, fn _event -> 
+  #IO.inspect(event) 
+  Task.start(fn ->
+    # Process.sleep(1000)
+    RustlerBtleplug.GenserverLiveBook.find_peripheral_by_name("Pressure")
+    RustlerBtleplug.GenserverLiveBook.connect()
+    RustlerBtleplug.GenserverLiveBook.subscribe("61d20a90-71a1-11ea-ab12-0800200c9a66")
+  end)
+end)
+
+Kino.listen(btn_disconn, fn _event -> 
+  #IO.inspect(event) 
   RustlerBtleplug.GenserverLiveBook.disconnect()
 end)
 

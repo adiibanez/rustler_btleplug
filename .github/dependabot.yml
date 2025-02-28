@@ -1,25 +1,25 @@
 version: 2
 updates:
 
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      # Check for updates to GitHub Actions every weekday
-      interval: "daily"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-patch"] # ignore patch updates
+- package-ecosystem: "github-actions"
+  directory: "/"
+  schedule:
+    # Check for updates to GitHub Actions every weekday
+    interval: "weekly"
+  ignore:
+  - dependency-name: "*"
+    update-types: [ "version-update:semver-patch" ] # ignore patch updates
 
-  # Maintain dependencies for Cargo
-  - package-ecosystem: "cargo"
-    directory: "/native"
-    schedule:
-      interval: "daily"
-    ignore:
-      - dependency-name: "*"
-        update-types: ["version-update:semver-patch"] # ignore patch updates
+# Maintain dependencies for Cargo
+- package-ecosystem: "cargo"
+  directory: "/native/btleplug_client"
+  schedule:
+    interval: "weekly"
+  ignore:
+  - dependency-name: "*"
+    update-types: [ "version-update:semver-patch" ] # ignore patch updates
 
-  - package-ecosystem: "mix"
-    directory: "/"
-    schedule:
-      interval: "daily"
+- package-ecosystem: "mix"
+  directory: "/"
+  schedule:
+    interval: "weekly"

@@ -121,7 +121,7 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
             for service_uuid in advertised_services {
                 service_map
                     .entry(service_uuid.clone())
-                    .or_insert(HashSet::new());
+                    .or_default();
             }
         }
 
@@ -131,10 +131,10 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
             let service_id = service.uuid.to_string();
             let char_set = service_map
                 .entry(service_id.clone())
-                .or_insert(HashSet::new());
+                .or_default();
 
             for char in service.characteristics.iter() {
-                let char_props = get_characteristic_properties(&char);
+                let char_props = get_characteristic_properties(char);
                 char_set.insert(CharacteristicInfo {
                     uuid: char.uuid.to_string(),
                     properties: char_props,
@@ -155,8 +155,8 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
             id: peripheral_id.clone(),
             name: properties.local_name.unwrap_or(peripheral_id.clone()),
             rssi: properties.rssi,
-            rssi_cache: rssi_cache,
-            is_connected: is_connected,
+            rssi_cache,
+            is_connected,
             tx_power: properties.tx_power_level,
             services: service_infos,
         };

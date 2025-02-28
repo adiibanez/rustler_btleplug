@@ -108,7 +108,9 @@ async fn adapter_state_to_map(adapter: &Adapter) -> AdapterState {
         };
 
         let is_connected = peripheral.is_connected().await.unwrap_or(false);
-        let rssi_cache = get_peripheral_rssi_cache(&peripheral_id).await.unwrap_or_default();
+        let rssi_cache = get_peripheral_rssi_cache(&peripheral_id)
+            .await
+            .unwrap_or_default();
 
         //let peripheral_rssi_cache = rssi_cache.get(&peripheral_id).map(|v| v.clone());
 

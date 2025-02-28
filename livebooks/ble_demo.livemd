@@ -15,6 +15,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   @name :ble_genserver_livebook
 
   @default_timeout 3000
+  @graph_debounce 1000
 
   use GenServer
   require Logger
@@ -23,9 +24,9 @@ defmodule RustlerBtleplug.GenserverLiveBook do
             central: nil,
             ble_messages: [],
             datatable: nil,
-            graph: nil,
+            graph_frame: nil,
             frame: nil,
-            layout: nil
+            graph_timer: nil
 
   def start_link(frame) do
     GenServer.start_link(__MODULE__, %{frame: frame}, name: @name)
@@ -38,17 +39,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   def handle_continue(_, state) do
-    graph =
-      Kino.Mermaid.new("""
-      graph TD;
-        A-->B;
-        A-->C;
-        B-->D;
-        C-->D;
-      """)
-
     graph_frame = Kino.Frame.new()
-    Kino.Frame.render(graph_frame, graph)
     datatable = Kino.DataTable.new([], keys: [:type, :uuid, :payload])
     Kino.Frame.render(state.frame, Kino.Layout.grid([graph_frame, datatable]))
 
@@ -59,21 +50,10 @@ defmodule RustlerBtleplug.GenserverLiveBook do
        ble_messages: [],
        datatable: datatable,
        frame: state.frame,
-       graph_frame: graph_frame
+       graph_frame: graph_frame,
+       graph_timer: nil
      }}
   end
-
-
-  @spec decode_payload(String.t() | map() | list() | any()) :: map() | list() | any()
-  def decode_payload(payload) when is_binary(payload) do
-    case Jason.decode(payload) do
-      {:ok, decoded} -> decoded
-      {:error, _e} -> 
-        # IO.puts("Failed to parse #{payload}, e: #{inspect(e)}") # Remove inspect to not reveal any sensitive information
-        payload #If it can't be JSON, return the original payload.
-    end
-  end
-  def decode_payload(payload), do: payload 
 
   @spec format_payload(any) :: String
   def format_payload(nil), do: ""  # Handle nil values explicitly
@@ -92,18 +72,11 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   def format_payload(payload), do: inspect(payload)
 
   def update_state_with_message(state, msg) do
-    # Logger.debug("Called update_state_with_message...")
-    
-    #decoded_payload = decode_payload(msg.payload)
     formatted_payload = format_payload(msg.payload)
-    
-    #IO.puts(inspect(msg))
-    
-
     formatted_msg = msg |>
       Map.put(:payload, formatted_payload )
     
-    IO.puts(inspect(formatted_msg))
+    #IO.puts(inspect(formatted_msg))
 
     new_state = %{state | ble_messages: Enum.take([formatted_msg | state.ble_messages], 100)}
     
@@ -111,19 +84,36 @@ defmodule RustlerBtleplug.GenserverLiveBook do
     new_state
   end
   
-  def update_graph(state) do
-    graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central)
-    graph =
-      Kino.Mermaid.new(graphviz_str)
-      
-    Kino.Frame.render(state.graph_frame, graph)    
+  def update_graph(_state) do
+    Process.send_after(self(), :update_graph, 0)
   end
 
-  # def handle_info({btl_event, msg}, state) do
-  #   Logger.debug("btl_event: #{inspect(btl_event)}")
-  #   Logger.debug("msg: #{inspect(msg)}")
-  #   {:no_reply, state}
-  # end
+  def handle_info(:update_graph, state) do
+    case state.central do
+      nil ->
+        IO.puts(":update_graph, no central")
+        {:noreply, state}
+      _ ->
+        case state.graph_timer do
+          nil ->
+            IO.puts(":update_graph, draw graph")
+            graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central)
+            graph = Kino.Mermaid.new(graphviz_str)
+            Kino.Frame.render(state.graph_frame, graph)
+
+            timer_ref = Process.send_after(self(), :graph_timer_expired, @graph_debounce)
+            {:noreply, %{state | graph_timer: timer_ref}}
+          _ ->
+            #IO.puts(":update_graph, timer active, ignore")
+            {:noreply, state}
+        end
+    end
+  end
+
+  def handle_info(:graph_timer_expired, state) do
+    #IO.puts(":graph_timer_expired")
+    {:noreply, %{state | graph_timer: nil}}
+  end
 
   def handle_info({:btleplug_scan_started, msg}, state) do
     update_graph(state)
@@ -133,7 +123,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 
   def handle_info({:btleplug_peripheral_discovered, uuid, props}, state) do
     # %{"address" => address, "address_type" => address, "local_name" => local_name, "manufacturer_data" => manufacturer_data, "rssi" => rssi, "service_data" => service_data, "services" => services, "tx_power_level" => tx_power_level}
-    # update_graph(state)
+    update_graph(state)
     {:noreply,
      update_state_with_message(state, %{
        type: "btleplug_peripheral_discovered",
@@ -192,8 +182,6 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 
   def handle_info({:btleplug_manufacturer_data_advertisement, {uuid, _data} = _service_data}, state) do
     # {"4a11a274-c1da-c0cb-7005-ca0e81e8278d", %{301 => [4, 0, 2, 2, 176, 49, 6, 1, 206, 216, 225, 241, 217, 16, 2, 0, 51, 0, 0, 0]}  
-
-    
     {:noreply,
      update_state_with_message(state, %{
        type: "btleplug_manufacturer_data_advertisement",
@@ -424,7 +412,20 @@ frame = Kino.Frame.new()
 Kino.start_child!({RustlerBtleplug.GenserverLiveBook, frame})
 {:ok, central_ref} = RustlerBtleplug.GenserverLiveBook.create_central()
 IO.puts("Is central_ref a reference: #{inspect(is_reference(central_ref))}")
-RustlerBtleplug.GenserverLiveBook.start_scan(default_timeout)
+RustlerBtleplug.GenserverLiveBook.start_scan()
+
+
+Task.start(fn ->
+  Process.sleep(1000)
+  RustlerBtleplug.GenserverLiveBook.find_peripheral_by_name("Pressure")
+  RustlerBtleplug.GenserverLiveBook.connect()
+  RustlerBtleplug.GenserverLiveBook.subscribe("61d20a90-71a1-11ea-ab12-0800200c9a66")
+end)
+
+Task.start(fn ->
+  Process.sleep(10000)
+  RustlerBtleplug.GenserverLiveBook.disconnect()
+end)
 
 frame
 ```

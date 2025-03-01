@@ -16,7 +16,7 @@ on:
   pull_request:
     paths:
       # In PRs we only run if this file changes.
-      #- ".github/workflows/release.yml"
+      - ".github/workflows/release.yml"
   workflow_dispatch:
 
 jobs:

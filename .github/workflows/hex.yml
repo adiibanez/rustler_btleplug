@@ -1,24 +1,49 @@
 name: Hex.pm Release
+
 on:
   workflow_dispatch:
-#  push:
-#    branches: 
-    #  - main
-#    tags:
-    #  - 'v*'
+  workflow_run:
+    workflows: [Precomp NIFs]
+    types: [completed]
+
+# jobs:
+#   on-success:
+#     runs-on: ubuntu-latest
+#     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+#     steps:
+#       - run: echo 'The triggering workflow passed'
+#   on-failure:
+#     runs-on: ubuntu-latest
+#     if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+#     steps:
+#       - run: echo 'The triggering workflow failed'
+
+# on:
+#   workflow_dispatch:
+# #  push:
+# #    branches: 
+#     #  - main
+# #    tags:
+#     #  - 'v*'
   
 
 env:
   MIX_ENV: prod
 
 jobs:
-  publish:
-    #if: false
+  on-success:  
     name: Publish to Hex.pm
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       
+      - name: Restore checksum cache
+        id: restore-checksum
+        uses: actions/cache@v4
+        with:
+          path: priv/rustler_precompiled/checksum-*
+          key: ${{ runner.os }}-rustler-checksum-${{ hashFiles('native/**/Cargo.lock', 'native/**/Cargo.toml') }}
+
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
@@ -37,11 +62,17 @@ jobs:
           mix local.hex --force
           mix local.rebar --force
           mix deps.get
-          
+
+      - name: Generate rustler_precompiled checksum file
+        if: steps.restore-checksum.outputs.cache-hit != 'true'
+        run: |
+          # Only compile if no checksum file was found in cache
+          RUSTLER_BTLEPLUG_BUILD=1 mix rustler_precompiled.download RustlerBtleplug.Native --only-local
+
       - name: Generate rustler_precompiled checksum file
         run: |
           # ensure a checksum file locally, TODO replace with cached file to avoid recompilation of rust 
-          RUSTLER_BTLEPLUG_BUILD=1 mix rustler_precompiled.download RustlerBtleplug.Native --only-local
+          # RUSTLER_BTLEPLUG_BUILD=1 mix rustler_precompiled.download RustlerBtleplug.Native --only-local
           # get all nifs
           mix rustler_precompiled.download RustlerBtleplug.Native --all --ignore-unavailable
 

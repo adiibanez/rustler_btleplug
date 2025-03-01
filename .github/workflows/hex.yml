@@ -41,7 +41,7 @@ jobs:
         id: restore-checksum
         uses: actions/cache@v4
         with:
-          path: priv/rustler_precompiled/checksum-*
+          path: checksum-*
           key: ${{ runner.os }}-rustler-checksum-${{ hashFiles('native/**/Cargo.lock', 'native/**/Cargo.toml') }}
 
       - name: Set up Elixir

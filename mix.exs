@@ -84,7 +84,7 @@ defmodule RustlerBtleplug.MixProject do
       licenses: ["MIT"],
       links: %{
         GitHub: @source_url,
-        LiveBook: "#{@source_url}/blob/main/livebooks/ble_demo.livemd"
+        LiveBook: "https://livebook.dev/run/?url=#{@source_url}/blob/main/livebooks/ble_demo.livemd"
       },
       files: [
         "lib",

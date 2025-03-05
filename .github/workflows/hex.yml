@@ -24,8 +24,7 @@ on:
 # #    branches: 
 #     #  - main
 # #    tags:
-#     #  - 'v*'
-  
+#     #  - 'v*'  
 
 env:
   MIX_ENV: prod
@@ -80,7 +79,7 @@ jobs:
         run: MIX_ENV=dev mix hex.build
         
       - name: Publish to Hex.pm
-        if: github.event_name == 'workflow_dispatch'
+        # if: github.event_name == 'workflow_dispatch'
         env:
           HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
         run: MIX_ENV=dev mix hex.publish --yes --replace

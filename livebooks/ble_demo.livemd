@@ -2,8 +2,10 @@
 
 ```elixir
 Mix.install([
-  {:kino, "~> 0.15.2"},
-  {:rustler_btleplug, "~> 0.0.11-alpha"},
+  {:kino, "~> 0.15.3"},
+  # , ref: "536ce4f231c14bdf6e7746b726e9fa0d82df393f"
+  # {:kino, github: "livebook-dev/kino"},
+  {:rustler_btleplug, "~> 0.0.11-alpha"}
 ])
 ```
 
@@ -15,7 +17,6 @@ defmodule RustlerBtleplug.Mermaid do
   Converts adapter state into a valid Mermaid.js format with grouped connected/disconnected devices.
   """
   def to_mermaid(%{adapter: adapter, peripherals: peripherals} = adapter_state) do
-
     IO.puts(inspect(adapter_state))
     adapter_name = normalize_id(adapter.name)
     connected_node = "node_connected((\"Connected Devices\"))"
@@ -23,7 +24,7 @@ defmodule RustlerBtleplug.Mermaid do
 
     # Define Mermaid Graph Start
     mermaid_base = [
-      #"graph TD",
+      # "graph TD",
       "graph LR",
       "classDef connected fill:#bbf,stroke:#00f,stroke-width:2px;",
       "classDef disconnected fill:#eee,stroke:#888,stroke-dasharray:5;",
@@ -84,8 +85,6 @@ defmodule RustlerBtleplug.Mermaid do
   end
 end
 
-
-
 defmodule RustlerBtleplug.GenserverLiveBook do
   @name :ble_genserver_livebook
 
@@ -115,21 +114,26 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 
   def format_datatable(key, value) do
     case key do
-      #:type -> value
-      #:uuid -> value
-      :payload -> {:ok, "#{value |> String.slice(0..20)} ..." |> dbg()}
+      # :type -> value
+      # :uuid -> value
+      :payload -> {:ok, value}
+      # :payload -> {:ok, "#{value |> String.slice(0..20)} ..." |> dbg()}
       _ -> {:ok, value}
     end
   end
 
   def handle_continue(_, state) do
     graph_frame = Kino.Frame.new()
-    datatable = Kino.DataTable.new(
-      [], 
-      keys: [:type, :uuid, :payload],
-      formatter: &format_datatable/2,
-      name: "Ble messages", num_rows: 30
-    )
+
+    datatable =
+      Kino.DataTable.new(
+        [],
+        keys: [:type, :uuid, :payload],
+        formatter: &format_datatable/2,
+        name: "Ble messages",
+        num_rows: 30
+      )
+
     Kino.Frame.render(state.frame, Kino.Layout.grid([graph_frame, datatable]))
 
     {:noreply,
@@ -145,14 +149,16 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   @spec format_payload(any) :: String
-  def format_payload(nil), do: ""  # Handle nil values explicitly
+  # Handle nil values explicitly
+  def format_payload(nil), do: ""
   def format_payload(payload) when is_binary(payload), do: payload
   def format_payload(payload) when is_list(payload), do: Enum.join(payload, ", ")
-  
+
   def format_payload(%{} = payload) do
     payload
     |> Enum.map(fn {key, value} ->
-      "#{key}: #{format_payload(value)}"  # Recursive call for nested structures
+      # Recursive call for nested structures
+      "#{key}: #{format_payload(value)}"
     end)
     |> Enum.join(", ")
   end
@@ -162,18 +168,20 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 
   def update_state_with_message(state, msg) do
     formatted_payload = format_payload(msg.payload)
-    formatted_msg = msg 
-      |> Map.put(:payload, formatted_payload )
+
+    formatted_msg =
+      msg
+      |> Map.put(:payload, formatted_payload)
       |> Map.put(:type, String.replace(msg.type, "btleplug_", ""))
-    
-    #IO.puts(inspect(formatted_msg))
+
+    # IO.puts(inspect(formatted_msg))
 
     new_state = %{state | ble_messages: Enum.take([formatted_msg | state.ble_messages], 50)}
-    
+
     Kino.DataTable.update(state.datatable, new_state.ble_messages, keys: [:type, :uuid, :payload])
     new_state
   end
-  
+
   def update_graph(_state) do
     Process.send_after(self(), :update_graph, 0)
   end
@@ -181,13 +189,14 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   def handle_info(:update_graph, state) do
     case state.central do
       nil ->
-        #IO.puts(":update_graph, no central")
+        # IO.puts(":update_graph, no central")
         {:noreply, state}
+
       _ ->
         case state.graph_timer do
           nil ->
-            #IO.puts(":update_graph, draw graph")
-            #graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central) # , "graph"
+            # IO.puts(":update_graph, draw graph")
+            # graphviz_str = RustlerBtleplug.Native.get_adapter_state_graph(state.central) # , "graph"
 
             adapter_state = RustlerBtleplug.Native.get_adapter_state_map(state.central)
             mermaid_text = RustlerBtleplug.Mermaid.to_mermaid(adapter_state)
@@ -196,20 +205,22 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 
             timer_ref = Process.send_after(self(), :graph_timer_expired, @graph_debounce)
             {:noreply, %{state | graph_timer: timer_ref}}
+
           _ ->
-            #IO.puts(":update_graph, timer active, ignore")
+            # IO.puts(":update_graph, timer active, ignore")
             {:noreply, state}
         end
     end
   end
 
   def handle_info(:graph_timer_expired, state) do
-    #IO.puts(":graph_timer_expired")
+    # IO.puts(":graph_timer_expired")
     {:noreply, %{state | graph_timer: nil}}
   end
 
   def handle_info({:btleplug_scan_started, msg}, state) do
     update_graph(state)
+
     {:noreply,
      update_state_with_message(state, %{type: "btleplug_scan_started", uuid: "", payload: msg})}
   end
@@ -217,14 +228,15 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   def handle_info({:btleplug_peripheral_discovered, uuid, props}, state) do
     # %{"address" => address, "address_type" => address, "local_name" => local_name, "manufacturer_data" => manufacturer_data, "rssi" => rssi, "service_data" => service_data, "services" => services, "tx_power_level" => tx_power_level}
     update_graph(state)
+
     {:noreply,
      update_state_with_message(state, %{
        type: "btleplug_peripheral_discovered",
        uuid: uuid,
        payload: %{
          local_name: props["local_name"],
-         rssi: props["rssi"],
-         #services: Map.keys(props["services"]).join(",")
+         rssi: props["rssi"]
+         # services: Map.keys(props["services"]).join(",")
        }
      })}
   end
@@ -232,6 +244,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   def handle_info({:btleplug_peripheral_connected, uuid}, state) do
     # %{"address" => address, "address_type" => address, "local_name" => local_name, "manufacturer_data" => manufacturer_data, "rssi" => rssi, "service_data" => service_data, "services" => services, "tx_power_level" => tx_power_level}
     update_graph(state)
+
     {:noreply,
      update_state_with_message(state, %{
        type: "btleplug_peripheral_connected",
@@ -267,13 +280,16 @@ defmodule RustlerBtleplug.GenserverLiveBook do
        uuid: uuid,
        payload: %{
          local_name: props["local_name"],
-         rssi: props["rssi"],
-         #services: Map.keys(props["services"]).join(",")
+         rssi: props["rssi"]
+         # services: Map.keys(props["services"]).join(",")
        }
      })}
   end
 
-  def handle_info({:btleplug_manufacturer_data_advertisement, {uuid, _data} = _service_data}, state) do
+  def handle_info(
+        {:btleplug_manufacturer_data_advertisement, {uuid, _data} = _service_data},
+        state
+      ) do
     # {"4a11a274-c1da-c0cb-7005-ca0e81e8278d", %{301 => [4, 0, 2, 2, 176, 49, 6, 1, 206, 216, 225, 241, 217, 16, 2, 0, 51, 0, 0, 0]}  
     {:noreply,
      update_state_with_message(state, %{
@@ -295,6 +311,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 
   def handle_info({:btleplug_peripheral_disconnected, uuid}, state) do
     update_graph(state)
+
     {:noreply,
      update_state_with_message(state, %{
        type: "btleplug_peripheral_disconnected",
@@ -305,6 +322,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
 
   def handle_info({:btleplug_scan_stopped, msg}, state) do
     update_graph(state)
+
     {:noreply,
      update_state_with_message(state, %{type: "btleplug_scan_stopped", uuid: "", payload: msg})}
   end
@@ -314,7 +332,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   def start_scan(timeout \\ @default_timeout) do
-    #Logger.debug("client :start_scan")
+    # Logger.debug("client :start_scan")
     GenServer.cast(@name, {:start_scan, timeout})
   end
 
@@ -359,11 +377,11 @@ defmodule RustlerBtleplug.GenserverLiveBook do
   end
 
   def handle_cast({:start_scan, timeout}, state) do
-    #Logger.debug("handle_cast :start_scan #{inspect(state)}")
+    # Logger.debug("handle_cast :start_scan #{inspect(state)}")
 
     case state.central do
       nil ->
-        #Logger.debug("No central reference to start scan.")
+        # Logger.debug("No central reference to start scan.")
         {:noreply, state}
 
       central_ref ->
@@ -374,7 +392,7 @@ defmodule RustlerBtleplug.GenserverLiveBook do
             {:noreply, state}
 
           _central_ref ->
-            #Logger.debug("Scan Started.")
+            # Logger.debug("Scan Started.")
             Process.sleep(1000)
             {:noreply, state}
         end
@@ -509,42 +527,47 @@ btn_stop_scan = Kino.Control.button("Stop scan")
 btn_conn = Kino.Control.button("Connect and subscribe")
 btn_disconn = Kino.Control.button("Disconnect")
 
-select_peripherals = Kino.Input.select("Peripherals", [en: "English", fr: "Français"])
+select_peripherals = Kino.Input.select("Peripherals", en: "English", fr: "Français")
 
-Kino.Frame.append(frame, 
-  Kino.Layout.grid([btn_scan, btn_stop_scan, btn_conn, btn_disconn, select_peripherals], columns: 4)
+Kino.Frame.append(
+  frame,
+  Kino.Layout.grid([btn_scan, btn_stop_scan, btn_conn, btn_disconn, select_peripherals],
+    columns: 4
+  )
 )
 
-Kino.Frame.append(frame, 
+Kino.Frame.append(
+  frame,
   Kino.Layout.grid([ble_frame], columns: 1)
 )
 
 Kino.start_child!({RustlerBtleplug.GenserverLiveBook, ble_frame})
 {:ok, central_ref} = RustlerBtleplug.GenserverLiveBook.create_central()
-#IO.puts("Is central_ref a reference: #{inspect(is_reference(central_ref))}")
+# IO.puts("Is central_ref a reference: #{inspect(is_reference(central_ref))}")
 
-Kino.listen(btn_scan, fn _event -> 
-  #IO.inspect(event) 
+Kino.listen(btn_scan, fn _event ->
+  # IO.inspect(event) 
   RustlerBtleplug.GenserverLiveBook.start_scan()
 end)
 
-Kino.listen(btn_stop_scan, fn _event -> 
-  #IO.inspect(event) 
+Kino.listen(btn_stop_scan, fn _event ->
+  # IO.inspect(event) 
   RustlerBtleplug.GenserverLiveBook.stop_scan()
 end)
 
-Kino.listen(btn_conn, fn _event -> 
-  #IO.inspect(event) 
+Kino.listen(btn_conn, fn _event ->
+  # IO.inspect(event) 
   Task.start(fn ->
     # Process.sleep(1000)
-    RustlerBtleplug.GenserverLiveBook.find_peripheral_by_name("Pressure")
+    RustlerBtleplug.GenserverLiveBook.find_peripheral_by_name("BLE")
     RustlerBtleplug.GenserverLiveBook.connect()
-    RustlerBtleplug.GenserverLiveBook.subscribe("61d20a90-71a1-11ea-ab12-0800200c9a66")
+    # RustlerBtleplug.GenserverLiveBook.subscribe("61d20a90-71a1-11ea-ab12-0800200c9a66")
+    RustlerBtleplug.GenserverLiveBook.subscribe("7d911010-e171-4550-bc7e-6d3c79695905")
   end)
 end)
 
-Kino.listen(btn_disconn, fn _event -> 
-  #IO.inspect(event) 
+Kino.listen(btn_disconn, fn _event ->
+  # IO.inspect(event) 
   RustlerBtleplug.GenserverLiveBook.disconnect()
 end)
 

@@ -80,8 +80,14 @@ jobs:
       run: |
         brew search rustup
         brew uninstall rustup
+
+        brew info rustup
+
         curl -o rust-up.sh --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs
         sh rust-up.sh -y
+
+        rustup toolchain install nightly
+        rustup default nightly
 
     - name: Maybe add Rust flags for compilation
       shell: bash

@@ -125,8 +125,15 @@ jobs:
     #     echo "Setting CROSS_TARGET_FLAGS for ${{ matrix.job.target }}"
     #     echo "CROSS_TARGET_FLAGS='-C link-arg=-static'" >> $GITHUB_ENV
 
+
+    - name: Set toolchain
+      shell: bash
+      run: |
+        rustup override set nightly
+
     - name: Build the project
       # if: ${{ !contains(matrix.job.target, 'apple-ios') }}
+      continue-on-error: true
       id: build-crate
       uses: philss/rustler-precompiled-action@v1.1.4
       with:
@@ -143,7 +150,8 @@ jobs:
         CROSS_TARGET_FLAGS: ${{ env.CROSS_TARGET_FLAGS }} # Pass the environment variable
 
     - name: Build ios Artifacts
-      # if: ${{ contains(matrix.job.target, 'apple-ios') }}
+      if: ${{ contains(matrix.job.target, 'apple-ios') }}
+      continue-on-error: true
       shell: bash
       id: build-crate-ios
       run: |

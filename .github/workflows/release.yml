@@ -124,6 +124,7 @@ jobs:
     #     echo "CROSS_TARGET_FLAGS='-C link-arg=-static'" >> $GITHUB_ENV
 
     - name: Build the project
+      if: ${{ !contains(matrix.job.target, 'apple-ios') }}
       id: build-crate
       uses: philss/rustler-precompiled-action@v1.1.4
       with:
@@ -138,6 +139,13 @@ jobs:
         variant: ${{ matrix.job.variant }}
       env:
         CROSS_TARGET_FLAGS: ${{ env.CROSS_TARGET_FLAGS }} # Pass the environment variable
+
+    - name: Build ios Artifacts
+      if: ${{ !contains(matrix.job.target, 'apple-ios') }}
+      id: build-crate-ios
+      shell: bash
+      run: |
+        rustup run nightly cargo build --target aarch64-apple-ios-sim
 
     - name: Artifact attestation
       uses: actions/attest-build-provenance@v2

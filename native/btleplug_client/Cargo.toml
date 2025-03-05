@@ -9,6 +9,8 @@ edition = "2021"
 name = "btleplug_client"
 path = "src/lib.rs"
 crate-type = ["cdylib"]
+#compatibility-version = "0.0.0"
+#current-version = "0.0.0"
 
 [features]
 default = ["nif_version_2_15"]

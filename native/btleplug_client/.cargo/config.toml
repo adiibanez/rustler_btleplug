@@ -1,8 +1,3 @@
-#[target.'cfg(target_os = "macos")']
-#rustflags = [
-#    "-C", "link-arg=-Wl,-install_name,@rpath/libbtleplug_client.dylib"
-#]
-
 # https://github.com/elixir-nx/ortex/blob/main/native/ortex/.cargo/config.toml
 [target.'cfg(target_os = "macos")']
 rustflags = [
@@ -10,6 +5,8 @@ rustflags = [
     "-C", "link-arg=dynamic_lookup",
     "-C", "link-arg=-fapple-link-rtlib",
     "-C", "link-args=-Wl,-rpath,@loader_path",
+    "-C", "link-args=-Wl,-compatibility_version,1",
+    "-C", "link-args=-Wl,-current_version,1"
 ]
 
 [target.x86_64-unknown-linux-gnu]

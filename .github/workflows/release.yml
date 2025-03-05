@@ -145,6 +145,7 @@ jobs:
       id: build-crate-ios
       shell: bash
       run: |
+        cd native/btleplug_client
         rustup run nightly cargo build --target aarch64-apple-ios-sim
 
     - name: Artifact attestation

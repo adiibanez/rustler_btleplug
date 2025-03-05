@@ -94,7 +94,9 @@ jobs:
         toolchain: nightly
 
     - name: Rust test toolchain
-      run: cargo test --all-features
+      run: |
+        cd native/btleplug_client
+        cargo test --all-features
 
     - name: Maybe add Rust flags for compilation
       shell: bash

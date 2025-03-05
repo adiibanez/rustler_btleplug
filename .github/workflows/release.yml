@@ -57,10 +57,19 @@ jobs:
     - name: Checkout source code
       uses: actions/checkout@v4
 
+
+    - name: Print job info
+      shell: bash
+      run: |
+        echo "JOB MATRIX OS: ${{ matrix.job.os }}"
+        echo "JOB MATRIX target: ${{ matrix.job.target }}"
+        echo "JOB MATRIX variant: ${{ matrix.job.variant }}"
+        echo "JOB MATRIX rustflags: ${{ matrix.job.rustflags }}"
+        echo "JOB MATRIX use-cross: ${{ matrix.job.use-cross }}"
+
     - name: Extract crate information
       shell: bash
       run: |
-        echo "MATRIX OS: "
         # Get the project version from mix.exs
         echo "PROJECT_VERSION=$(sed -n 's/^  @version "\(.*\)"/\1/p' mix.exs | head -n1)" >> $GITHUB_ENV
 
@@ -69,8 +78,8 @@ jobs:
       continue-on-error: true
       shell: bash
       run: |
-        brew search rust
-        brew uninstall rust
+        brew search rustup
+        brew uninstall rustup
         echo "" | curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
     - name: Maybe add Rust flags for compilation

@@ -13,6 +13,7 @@
 #[cfg(not(any(
     target_os = "windows",
     target_os = "macos",
+    target_os = "ios",
     all(target_os = "linux", not(target_env = "musl"))
 )))]
 use mimalloc::MiMalloc;
@@ -20,6 +21,7 @@ use mimalloc::MiMalloc;
 #[cfg(not(any(
     target_os = "windows",
     target_os = "macos",
+    target_os = "ios",
     all(target_os = "linux", not(target_env = "musl"))
 )))]
 #[global_allocator]

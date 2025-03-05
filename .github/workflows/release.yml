@@ -60,11 +60,12 @@ jobs:
     - name: Extract crate information
       shell: bash
       run: |
+        echo "MATRIX OS: "
         # Get the project version from mix.exs
         echo "PROJECT_VERSION=$(sed -n 's/^  @version "\(.*\)"/\1/p' mix.exs | head -n1)" >> $GITHUB_ENV
 
     - name: Get good rustup version
-      if: startsWith(matrix.os, 'macos-')
+      if: startsWith(matrix.job.os, 'macos-')
       continue-on-error: true
       shell: bash
       run: |

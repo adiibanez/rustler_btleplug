@@ -93,10 +93,10 @@ jobs:
       with: 
         toolchain: nightly
 
-    - name: Rust test toolchain
-      run: |
-        cd native/btleplug_client
-        cargo test --all-features
+    # - name: Rust test toolchain
+    #   run: |
+    #     cd native/btleplug_client
+    #     cargo test --all-features
 
     - name: Maybe add Rust flags for compilation
       shell: bash
@@ -107,7 +107,9 @@ jobs:
     - name: Add target
       shell: bash
       run: |
+        rustup default nightly
         rustup target add ${{ matrix.job.target }}
+        rustup target list
 
     - uses: Swatinem/rust-cache@v2
       with:

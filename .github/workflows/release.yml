@@ -141,7 +141,7 @@ jobs:
         CROSS_TARGET_FLAGS: ${{ env.CROSS_TARGET_FLAGS }} # Pass the environment variable
 
     - name: Build ios Artifacts
-      if: ${{ !contains(matrix.job.target, 'apple-ios') }}
+      if: ${{ contains(matrix.job.target, 'apple-ios') }}
       id: build-crate-ios
       shell: bash
       run: |

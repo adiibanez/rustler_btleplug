@@ -1,6 +1,6 @@
 [package]
 name = "btleplug_client"
-version = "0.0.12-alpha"
+version = "0.0.15-alpha"
 keywords = ["bluetooth", "BLE", "bluez", "uwp", "corebluetooth"]
 categories = ["hardware-support"]
 edition = "2021"
@@ -8,7 +8,7 @@ edition = "2021"
 [lib]
 name = "btleplug_client"
 path = "src/lib.rs"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "staticlib"]
 #compatibility-version = "0.0.0"
 #current-version = "0.0.0"
 

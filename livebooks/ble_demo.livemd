@@ -1,3 +1,5 @@
+<!-- livebook:{"app_settings":{"auto_shutdown_ms":60000,"slug":"rustler-playground-test"}} -->
+
 # Rustler BLE playground
 
 ```elixir
@@ -5,7 +7,7 @@ Mix.install([
   {:kino, "~> 0.15.3"},
   # , ref: "536ce4f231c14bdf6e7746b726e9fa0d82df393f"
   # {:kino, github: "livebook-dev/kino"},
-  {:rustler_btleplug, "~> 0.0.11-alpha"}
+  {:rustler_btleplug, "~> 0.0.14-alpha"}
 ])
 ```
 
@@ -21,6 +23,9 @@ defmodule RustlerBtleplug.Mermaid do
     adapter_name = normalize_id(adapter.name)
     connected_node = "node_connected((\"Connected Devices\"))"
     disconnected_node = "node_disconnected((\"Disconnected Devices\"))"
+    node_near = "node_near((\"Near (Strong RSSI)\"))"
+    node_middle = "node_middle((\"Middle (Moderate RSSI)\"))"
+    node_far = "node_far((\"Far (Weak RSSI)\"))"
 
     # Define Mermaid Graph Start
     mermaid_base = [
@@ -30,7 +35,11 @@ defmodule RustlerBtleplug.Mermaid do
       "classDef disconnected fill:#eee,stroke:#888,stroke-dasharray:5;",
       "#{adapter_name}((\"Adapter: #{adapter.name}\"))",
       "#{adapter_name} --> #{connected_node}",
-      "#{adapter_name} --> #{disconnected_node}"
+      "#{adapter_name} --> #{disconnected_node}",
+      "#{disconnected_node} --> #{node_near}",
+      "#{disconnected_node} --> #{node_middle}",
+      "#{disconnected_node} --> #{node_far}",
+      ""
     ]
 
     # Grouped processing for peripherals
@@ -47,19 +56,63 @@ defmodule RustlerBtleplug.Mermaid do
         [entry | services]
       end)
 
-    mermaid_disconnected =
-      Enum.map(disconnected_peripherals, fn peripheral ->
+    # Cluster disconnected peripherals based on RSSI
+    {near, middle, far} = cluster_by_rssi(disconnected_peripherals)
+
+    mermaid_near =
+      Enum.map(near, fn peripheral ->
         peripheral_id = normalize_id(peripheral.id)
         peripheral_label = "Peripheral: #{peripheral.name} (RSSI: #{peripheral.rssi || "N/A"})"
-        entry = "node_disconnected -.-> #{peripheral_id}[\"#{peripheral_label}\"]:::disconnected"
+        entry = "#{node_near} -.-> #{peripheral_id}[\"#{peripheral_label}\"]:::disconnected"
 
         services = process_services(peripheral_id, peripheral.services)
         [entry | services]
       end)
 
-    # Join all parts and return the Mermaid string
-    (mermaid_base ++ List.flatten(mermaid_connected) ++ List.flatten(mermaid_disconnected))
+    mermaid_middle =
+      Enum.map(middle, fn peripheral ->
+        peripheral_id = normalize_id(peripheral.id)
+        peripheral_label = "Peripheral: #{peripheral.name} (RSSI: #{peripheral.rssi || "N/A"})"
+        entry = "#{node_middle} -.-> #{peripheral_id}[\"#{peripheral_label}\"]:::disconnected"
+
+        services = process_services(peripheral_id, peripheral.services)
+        [entry | services]
+      end)
+
+    mermaid_far =
+      Enum.map(far, fn peripheral ->
+        peripheral_id = normalize_id(peripheral.id)
+        peripheral_label = "Peripheral: #{peripheral.name} (RSSI: #{peripheral.rssi || "N/A"})"
+        entry = "#{node_far} -.-> #{peripheral_id}[\"#{peripheral_label}\"]:::disconnected"
+
+        services = process_services(peripheral_id, peripheral.services)
+        [entry | services]
+      end)
+
+    (mermaid_base ++
+       List.flatten(mermaid_connected) ++
+       List.flatten(mermaid_near) ++ List.flatten(mermaid_middle) ++ List.flatten(mermaid_far))
     |> Enum.join("\n")
+  end
+
+  defp cluster_by_rssi(peripherals) do
+    Enum.reduce(peripherals, {[], [], []}, fn peripheral, {near, middle, far} ->
+      rssi = peripheral.rssi || -100
+
+      case rssi do
+        rssi when rssi >= -60 ->
+          {[peripheral | near], middle, far}
+
+        rssi when rssi >= -80 ->
+          {near, [peripheral | middle], far}
+
+        _ ->
+          {near, middle, [peripheral | far]}
+      end
+    end)
+    |> then(fn {near, middle, far} ->
+      {Enum.reverse(near), Enum.reverse(middle), Enum.reverse(far)}
+    end)
   end
 
   # Processes services and characteristics

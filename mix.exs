@@ -1,7 +1,7 @@
 defmodule RustlerBtleplug.MixProject do
   use Mix.Project
 
-  @version "0.0.14-alpha"
+  @version "0.0.15-alpha"
   @source_url "https://github.com/adiibanez/rustler_btleplug"
   @dev? String.ends_with?(@version, "-dev")
   @force_build? System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"]
@@ -84,7 +84,8 @@ defmodule RustlerBtleplug.MixProject do
       licenses: ["MIT"],
       links: %{
         GitHub: @source_url,
-        LiveBook: "https://livebook.dev/run/?url=#{@source_url}/blob/main/livebooks/ble_demo.livemd"
+        LiveBook:
+          "https://livebook.dev/run/?url=#{@source_url}/blob/main/livebooks/ble_demo.livemd"
       },
       files: [
         "lib",

@@ -22,7 +22,7 @@ Mix
 ```elixir
 def deps do
   [
-    {:rustler_btleplug, "~> 0.0.10-alpha"},
+    {:rustler_btleplug, "~> 0.0.15-alpha"},
     {:rustler, ">= 0.31.0", optional: true} # rustler_precompiled dependency
   ]
 end
@@ -30,7 +30,7 @@ end
 Livebook mix setup
 ```elixir
 Mix.install([
-  {:rustler_btleplug, "~> 0.0.10-alpha"}
+  {:rustler_btleplug, "~> 0.0.15-alpha"}
 ])
 ```
 

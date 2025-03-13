@@ -86,4 +86,9 @@ fn get_map() -> Result<HashMap<String, HashMap<String, String>>, RustlerError> {
     Ok(map)
 }
 
+#[no_mangle]
+pub extern "C" fn libbtleplug_client_nif_init() -> i32 {
+    0 // Return 0 to indicate success
+}
+
 rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load);

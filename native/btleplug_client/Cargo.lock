@@ -148,7 +148,7 @@ dependencies = [
 
 [[package]]
 name = "btleplug_client"
-version = "0.0.12-alpha"
+version = "0.0.15-alpha"
 dependencies = [
  "btleplug",
  "chrono",

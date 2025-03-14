@@ -9,7 +9,8 @@ edition = "2021"
 name = "btleplug_client"
 path = "src/lib.rs"
 #crate-type = ["cdylib", "staticlib"]
-crate-type = ["dylib", "staticlib"]
+#crate-type = ["dylib", "staticlib"]
+crate-type = ["staticlib"]
 #compatibility-version = "0.0.0"
 #current-version = "0.0.0"
 

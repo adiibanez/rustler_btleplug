@@ -1,27 +1,31 @@
 defmodule RustlerBtleplug.Native do
   @moduledoc false
 
+  use Rustler,
+    otp_app: :rustler_btleplug,
+    crate: :btleplug_client
+
   version = Mix.Project.config()[:version]
 
-  use RustlerPrecompiled,
-    otp_app: :rustler_btleplug,
-    crate: :btleplug_client,
-    base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v#{version}",
-    force_build: System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"],
-    version: version,
-    max_retries: 0,
-    targets: [
-      "aarch64-apple-darwin",
-      "x86_64-apple-darwin",
-      "aarch64-apple-ios-sim",
-      "aarch64-apple-ios",
-      "x86_64-apple-ios",
-      "aarch64-unknown-linux-gnu",
-      "aarch64-unknown-linux-musl",
-      "x86_64-pc-windows-msvc",
-      "x86_64-unknown-linux-gnu",
-      "x86_64-unknown-linux-musl"
-    ]
+  # use RustlerPrecompiled,
+  #   otp_app: :rustler_btleplug,
+  #   crate: :btleplug_client,
+  #   base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v#{version}",
+  #   force_build: System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"],
+  #   version: version,
+  #   max_retries: 0,
+  #   targets: [
+  #     "aarch64-apple-darwin",
+  #     "x86_64-apple-darwin",
+  #     "aarch64-apple-ios-sim",
+  #     "aarch64-apple-ios",
+  #     "x86_64-apple-ios",
+  #     "aarch64-unknown-linux-gnu",
+  #     "aarch64-unknown-linux-musl",
+  #     "x86_64-pc-windows-msvc",
+  #     "x86_64-unknown-linux-gnu",
+  #     "x86_64-unknown-linux-musl"
+  #   ]
 
   ## ✅ Type Definitions
   @type central() :: reference()
@@ -99,12 +103,14 @@ defmodule RustlerBtleplug.Native do
     - `characteristics` (Map of characteristics)
   """
   @spec get_adapter_state_map(central()) ::
-          {:ok, %{
-            adapter: RustlerBtleplug.AdapterInfo.t(),
-            peripherals: %{String.t() => RustlerBtleplug.PeripheralInfo.t()},
-            services: %{String.t() => RustlerBtleplug.ServiceInfo.t()},
-            characteristics: %{String.t() => RustlerBtleplug.CharacteristicInfo.t()}
-          }} | {:error, term()}
+          {:ok,
+           %{
+             adapter: RustlerBtleplug.AdapterInfo.t(),
+             peripherals: %{String.t() => RustlerBtleplug.PeripheralInfo.t()},
+             services: %{String.t() => RustlerBtleplug.ServiceInfo.t()},
+             characteristics: %{String.t() => RustlerBtleplug.CharacteristicInfo.t()}
+           }}
+          | {:error, term()}
   def get_adapter_state_map(_central), do: error()
 
   ## ✅ Utility / Debug Functions

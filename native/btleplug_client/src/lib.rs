@@ -47,6 +47,8 @@ use rustler::{Env, Error as RustlerError, Term};
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
+use std::os::raw::c_int;
+
 pub static RUNTIME: Lazy<Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime"));
 
@@ -86,9 +88,18 @@ fn get_map() -> Result<HashMap<String, HashMap<String, String>>, RustlerError> {
     Ok(map)
 }
 
+// #[no_mangle]
+// pub extern "C" fn libbtleplug_client_nif_init() -> i32 {
+//     0 // Return 0 to indicate success
+// }
+
+// pub const NIF_MAJOR_VERSION: c_int = 2;
+// pub const NIF_MINOR_VERSION: c_int = 15;
+// find . -name nif_api.snippet.rs
 #[no_mangle]
-pub extern "C" fn libbtleplug_client_nif_init() -> i32 {
-    0 // Return 0 to indicate success
+pub extern "C" fn libbtleplug_client_nif_init() -> c_int {
+    info!("libbtleplug_client_nif_init");
+    (2 << 16) as c_int | 15 as c_int
 }
 
 rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load);

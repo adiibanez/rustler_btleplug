@@ -3,7 +3,13 @@ defmodule RustlerBtleplug.Native do
 
   use Rustler,
     otp_app: :rustler_btleplug,
-    crate: :btleplug_client
+    crate: :btleplug_client,
+    skip_compilation?: true
+
+  # @on_load :load_nifs
+  # def load_nifs do
+  #   :ok
+  # end
 
   version = Mix.Project.config()[:version]
 

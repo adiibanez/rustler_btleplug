@@ -58,7 +58,7 @@ defmodule RustlerBtleplug.MixProject do
       deps: deps(),
       # docs: docs(),
       preferred_cli_env: [ci: :test],
-      compilers: [:rustler] ++ Mix.compilers(),
+      compilers: Mix.compilers(),
       aliases: [
         "rust.lint": [
           "cmd cargo clippy --manifest-path=native/btleplug_client/Cargo.toml -- -Dwarnings"
@@ -102,7 +102,11 @@ defmodule RustlerBtleplug.MixProject do
   defp deps do
     [
       # {:rustler, ">= 0.31.0", optional: true},
-      {:rustler, github: "filmor/rustler", ref: "static", override: true},
+      {:rustler, github: "filmor/rustler", ref: "static", override: true, sparse: "rustler_mix"},
+      # {:rustler,
+      #  path:
+      #    "/Users/adrianibanez/Documents/projects/2024_sensor-platform/checkouts/rustler/rustler_mix",
+      #  override: true},
       {:rustler_precompiled, "~> 0.7"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}

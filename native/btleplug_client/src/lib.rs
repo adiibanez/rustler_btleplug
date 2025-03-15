@@ -100,10 +100,10 @@ pub extern "C" fn nif_init() -> *const rustler::nif::ErlNifEntry {
     rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load).as_ptr()
 }*/
 
-#[no_mangle]
-pub extern "C" fn nif_version_2_15() -> c_int {
-    (2 << 16) as c_int | 15 as c_int
-}
+// #[no_mangle]
+// pub extern "C" fn nif_version_2_15() -> c_int {
+//     (2 << 16) as c_int | 15 as c_int
+// }
 
 // #[no_mangle]
 // pub extern "C" fn libbtleplug_client_nif_init() -> i32 {

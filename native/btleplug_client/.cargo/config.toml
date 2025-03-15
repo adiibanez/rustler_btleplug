@@ -44,3 +44,5 @@ lto = true
 
 [build]
 rustflags = ["-A", "unexpected_cfgs"]
+build-stage = 1
+target = ["aarch64-apple-tvos", "aarch64-apple-tvos-sim"]

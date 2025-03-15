@@ -8,9 +8,9 @@ edition = "2021"
 [lib]
 name = "btleplug_client"
 path = "src/lib.rs"
-#crate-type = ["cdylib", "staticlib"]
-crate-type = ["dylib", "staticlib"]
-# crate-type = ["staticlib"]
+# crate-type = ["cdylib", "staticlib"]
+# crate-type = ["dylib", "staticlib"]
+crate-type = ["staticlib"]
 #compatibility-version = "0.0.0"
 #current-version = "0.0.0"
 
@@ -30,7 +30,9 @@ chrono = "0.4.40"
 serde_json = "1.0.93"
 
 btleplug = { version = "0.11.7", features = ["serde"] }
-rustler = { version = "0.36.1", default-features = false, features = ["derive", "nif_version_2_15"] }
+#rustler = { version = "0.36.1", default-features = false, features = ["derive", "nif_version_2_15"] }
+rustler = { git = "https://github.com/filmor/rustler.git", branch = "static" }
+
 rustler_codegen = "*"
 tokio = { version = "1", features = ["full"] }
 futures = "0.3.31"
@@ -63,3 +65,6 @@ serde = { version = "1.0", default-features = false, features = ["alloc"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 btleplug = { version = "0.11.7", default-features = false }
 mimalloc = { version = "*", default-features = false }
+
+
+features = ["staticlib"]

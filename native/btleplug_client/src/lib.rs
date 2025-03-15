@@ -14,6 +14,9 @@
     target_os = "windows",
     target_os = "macos",
     target_os = "ios",
+    target_os = "tvos",
+    target_os = "visionos",
+    target_os = "watchos",
     all(target_os = "linux", not(target_env = "musl"))
 )))]
 use mimalloc::MiMalloc;
@@ -22,6 +25,9 @@ use mimalloc::MiMalloc;
     target_os = "windows",
     target_os = "macos",
     target_os = "ios",
+    target_os = "tvos",
+    target_os = "visionos",
+    target_os = "watchos",
     all(target_os = "linux", not(target_env = "musl"))
 )))]
 #[global_allocator]
@@ -107,9 +113,4 @@ pub extern "C" fn nif_version_2_15() -> c_int {
 // pub const NIF_MAJOR_VERSION: c_int = 2;
 // pub const NIF_MINOR_VERSION: c_int = 15;
 // find . -name nif_api.snippet.rs
-#[no_mangle]
-pub extern "C" fn libbtleplug_client_nif_init() -> c_int {
-    info!("libbtleplug_client_nif_init");
-    rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load);
-    (2 << 16) as c_int | 15 as c_int
-}
+rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load);

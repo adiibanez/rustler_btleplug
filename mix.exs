@@ -58,6 +58,8 @@ defmodule RustlerBtleplug.MixProject do
       deps: deps(),
       # docs: docs(),
       preferred_cli_env: [ci: :test],
+      compilers: [:rustler] ++ Mix.compilers(),
+      rustler_crates: rustler_crates(),
       aliases: [
         "rust.lint": [
           "cmd cargo clippy --manifest-path=native/btleplug_client/Cargo.toml -- -Dwarnings"
@@ -100,10 +102,23 @@ defmodule RustlerBtleplug.MixProject do
 
   defp deps do
     [
-      {:rustler, ">= 0.31.0", optional: true},
+      {:rustler, "~> 0.31.0", runtime: false},
       {:rustler_precompiled, "~> 0.7"},
       {:ex_doc, ">= 0.0.0", only: :dev, runtime: false},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false}
+    ]
+  end
+
+  defp rustler_crates do
+    [
+      btleplug_client: [
+        path: "native/btleplug_client",
+        mode: if(System.get_env("RUSTLER_BUILD_MODE"), do: String.to_atom(System.get_env("RUSTLER_BUILD_MODE")), else: :debug),
+        crate_type: :staticlib,
+        default_features: false,
+        features: ["nif_version_2_15"],
+        targets: ["aarch64-apple-darwin", "x86_64-apple-darwin", "aarch64-apple-ios"]
+      ]
     ]
   end
 end

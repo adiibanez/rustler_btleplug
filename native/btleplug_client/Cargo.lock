@@ -162,7 +162,7 @@ dependencies = [
  "rand",
  "rustc_version",
  "rustler",
- "rustler_codegen",
+ "rustler_codegen 0.31.0",
  "serde",
  "serde_json",
  "tokio",
@@ -419,6 +419,12 @@ name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
+
+[[package]]
+name = "heck"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "heck"
@@ -879,7 +885,19 @@ dependencies = [
  "inventory",
  "libloading",
  "regex-lite",
- "rustler_codegen",
+ "rustler_codegen 0.36.1",
+]
+
+[[package]]
+name = "rustler_codegen"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dbd46408f51c0ca6a68dc36aa4f90e3554960bd1b7cc513e6ff2ccad7dd92aff"
+dependencies = [
+ "heck 0.4.1",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -888,7 +906,7 @@ version = "0.36.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf9365a04e3a3a4d3136953d97c67fd0a9c036d36197917961551c2cc1ecb385"
 dependencies = [
- "heck",
+ "heck 0.5.0",
  "inventory",
  "proc-macro2",
  "quote",

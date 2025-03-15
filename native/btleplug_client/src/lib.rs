@@ -88,6 +88,17 @@ fn get_map() -> Result<HashMap<String, HashMap<String, String>>, RustlerError> {
     Ok(map)
 }
 
+// Static NIF entry points for OTP-27
+/*#[no_mangle]
+pub extern "C" fn nif_init() -> *const rustler::nif::ErlNifEntry {
+    rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load).as_ptr()
+}*/
+
+#[no_mangle]
+pub extern "C" fn nif_version_2_15() -> c_int {
+    (2 << 16) as c_int | 15 as c_int
+}
+
 // #[no_mangle]
 // pub extern "C" fn libbtleplug_client_nif_init() -> i32 {
 //     0 // Return 0 to indicate success
@@ -99,7 +110,6 @@ fn get_map() -> Result<HashMap<String, HashMap<String, String>>, RustlerError> {
 #[no_mangle]
 pub extern "C" fn libbtleplug_client_nif_init() -> c_int {
     info!("libbtleplug_client_nif_init");
+    rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load);
     (2 << 16) as c_int | 15 as c_int
 }
-
-rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load);

@@ -33,7 +33,7 @@ defmodule RustlerBtleplug.Native do
   #     "x86_64-unknown-linux-musl"
   #   ]
 
-  ## ✅ Type Definitions
+  ## Type Definitions
   @type central() :: reference()
   @type peripheral() :: reference()
   @type gatt_peripheral() :: reference()
@@ -49,7 +49,7 @@ defmodule RustlerBtleplug.Native do
 
   @default_timeout 2000
 
-  ## ✅ Core BLE Functions
+  ## Core BLE Functions
   @spec init(map()) :: {:ok, central()} | {:error, term()}
   def init(_opts \\ %{}), do: error()
 
@@ -62,7 +62,7 @@ defmodule RustlerBtleplug.Native do
   @spec stop_scan(central()) :: {:ok, central()} | {:error, term()}
   def stop_scan(_central), do: error()
 
-  ## ✅ Peripheral Discovery
+  ## Peripheral Discovery
   @doc """
   Find a peripheral by UUID.
   """
@@ -77,28 +77,28 @@ defmodule RustlerBtleplug.Native do
           {:ok, peripheral()} | {:error, term()}
   def find_peripheral_by_name(_central, _name, _timeout \\ @default_timeout), do: error()
 
-  ## ✅ Peripheral Connection
+  ## Peripheral Connection
   @spec connect(peripheral(), number()) :: {:ok, peripheral()} | {:error, term()}
   def connect(_peripheral, _timeout \\ @default_timeout), do: error()
 
   @spec disconnect(peripheral(), number()) :: {:ok, peripheral()} | {:error, term()}
   def disconnect(_peripheral, _timeout \\ @default_timeout), do: error()
 
-  ## ✅ Notifications & Subscriptions
+  ## Notifications & Subscriptions
   @spec subscribe(peripheral(), uuid(), number()) :: {:ok, peripheral()} | {:error, term()}
   def subscribe(_peripheral, _characteristic, _timeout \\ @default_timeout), do: error()
 
   @spec unsubscribe(peripheral(), uuid(), number()) :: {:ok, peripheral()} | {:error, term()}
   def unsubscribe(_peripheral, _characteristic, _timeout \\ @default_timeout), do: error()
 
-  ## ✅ Adapter State Queries (Graph & Mindmap)
+  ## Adapter State Queries (Graph & Mindmap)
   @doc """
   Retrieve the adapter state as a **GraphViz** or **Mermaid mindmap**.
   """
   @spec get_adapter_state_graph(central(), String.t()) :: {:ok, state_graph()} | {:error, term()}
   def get_adapter_state_graph(_central, _variant \\ "mindmap"), do: error()
 
-  ## ✅ Adapter State as Structured Map (Elixir-friendly)
+  ## Adapter State as Structured Map (Elixir-friendly)
   @doc """
   Retrieve the **full adapter state** as a structured map.
 
@@ -119,7 +119,7 @@ defmodule RustlerBtleplug.Native do
           | {:error, term()}
   def get_adapter_state_map(_central), do: error()
 
-  ## ✅ Utility / Debug Functions
+  ## Utility / Debug Functions
   @spec test_string(String.t()) :: {:ok, String.t()} | {:error, term()}
   def test_string(_string), do: error()
 
@@ -129,6 +129,6 @@ defmodule RustlerBtleplug.Native do
   @spec get_map() :: {:ok, map()} | {:error, term()}
   def get_map(), do: error()
 
-  ## ❌ Handle NIF errors when Rust module isn't loaded
+  ## Handle NIF errors when Rust module isn't loaded
   defp error, do: :erlang.nif_error(:nif_not_loaded)
 end

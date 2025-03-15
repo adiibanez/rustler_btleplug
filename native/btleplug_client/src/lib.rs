@@ -53,7 +53,7 @@ use rustler::{Env, Error as RustlerError, Term};
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
-use std::os::raw::c_int;
+// use std::os::raw::c_int;
 
 pub static RUNTIME: Lazy<Runtime> =
     Lazy::new(|| tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime"));

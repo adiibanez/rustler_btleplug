@@ -43,9 +43,9 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.87"
+version = "0.1.88"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d556ec1359574147ec0c4fc5eb525f3f23263a592b1a9c07e0a75b427de55c97"
+checksum = "e539d3fca749fcee5236ab05e93a52867dd549cc157c8cb7f99595f3cedffdb5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -162,7 +162,7 @@ dependencies = [
  "rand",
  "rustc_version",
  "rustler",
- "rustler_codegen 0.31.0",
+ "rustler_codegen 0.36.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde",
  "serde_json",
  "tokio",
@@ -419,12 +419,6 @@ name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
-
-[[package]]
-name = "heck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "heck"
@@ -879,21 +873,22 @@ dependencies = [
 [[package]]
 name = "rustler"
 version = "0.36.1"
-source = "git+https://github.com/filmor/rustler.git?branch=static#60e384f8160600153fc96fc0ec095ceaaeec3d06"
+source = "git+https://github.com/filmor/rustler.git?branch=static#5f4456a5d2e1da266743029e651428d616e32faf"
 dependencies = [
  "inventory",
  "libloading",
  "regex-lite",
- "rustler_codegen 0.36.1",
+ "rustler_codegen 0.36.1 (git+https://github.com/filmor/rustler.git?branch=static)",
 ]
 
 [[package]]
 name = "rustler_codegen"
-version = "0.31.0"
+version = "0.36.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dbd46408f51c0ca6a68dc36aa4f90e3554960bd1b7cc513e6ff2ccad7dd92aff"
+checksum = "bf9365a04e3a3a4d3136953d97c67fd0a9c036d36197917961551c2cc1ecb385"
 dependencies = [
- "heck 0.4.1",
+ "heck",
+ "inventory",
  "proc-macro2",
  "quote",
  "syn",
@@ -902,9 +897,9 @@ dependencies = [
 [[package]]
 name = "rustler_codegen"
 version = "0.36.1"
-source = "git+https://github.com/filmor/rustler.git?branch=static#60e384f8160600153fc96fc0ec095ceaaeec3d06"
+source = "git+https://github.com/filmor/rustler.git?branch=static#5f4456a5d2e1da266743029e651428d616e32faf"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "inventory",
  "proc-macro2",
  "quote",

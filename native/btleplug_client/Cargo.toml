@@ -34,7 +34,8 @@ btleplug = { version = "0.11.7", features = ["serde"] }
 rustler = { git = "https://github.com/filmor/rustler.git", branch = "static", default-features = false, features = ["staticlib", "derive", "nif_version_2_15"]}
 
 rustler_codegen = "*"
-tokio = { version = "1", features = ["full"] }
+#tokio = { version = "1", features = ["full"] }
+tokio = { version = "1", features = ["rt", "macros", "rt-multi-thread", "net", "time"] }
 futures = "0.3.31"
 once_cell = "1.19"
 lazy_static = "1.3.0"

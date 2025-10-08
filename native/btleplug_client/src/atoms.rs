@@ -30,4 +30,5 @@ rustler::atoms! {
     btleplug_services_advertisement,
 
     btleplug_characteristic_value_changed,
+    btleplug_characteristic_read,
 }

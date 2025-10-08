@@ -486,3 +486,240 @@ pub fn unsubscribe(
 
     Ok(resource)
 }
+
+#[rustler::nif]
+pub fn write_characteristic(
+    env: Env,
+    resource: ResourceArc<PeripheralRef>,
+    characteristic_uuid: String,
+    data: Vec<u8>,
+    timeout_ms: u64,
+) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
+    let peripheral_arc = resource.0.clone();
+    let env_pid = env.pid();
+
+    RUNTIME.spawn(async move {
+        let (peripheral, state, pid) = {
+            let state_guard = peripheral_arc.lock().unwrap();
+            (
+                state_guard.peripheral.clone(),
+                state_guard.state,
+                state_guard.pid,
+            )
+        };
+
+        info!(
+            "✍️ Writing to Peripheral: {:?}, characteristic: {}, caller pid: {:?}, state pid: {:?}",
+            peripheral.id(),
+            characteristic_uuid,
+            env_pid.as_c_arg(),
+            pid.as_c_arg()
+        );
+
+        if state != PeripheralStateEnum::ServicesDiscovered {
+            warn!("⚠️ Services not yet discovered. Manually triggering discovery...");
+            if let Err(e) = timeout(
+                Duration::from_millis(timeout_ms),
+                peripheral.discover_services(),
+            )
+            .await
+            {
+                warn!("❌ Service discovery failed: {:?}", e);
+                return;
+            }
+
+            RUNTIME.spawn({
+                let peripheral_arc_clone = peripheral_arc.clone();
+                async move {
+                    if !discover_services_internal(&peripheral_arc_clone, timeout_ms).await {
+                        warn!("⚠️ No services discovered, but proceeding with write.");
+                    }
+                }
+            });
+        }
+
+        info!("🔍 Waiting 2s before checking characteristics...");
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+
+        let characteristics = peripheral.characteristics();
+        let characteristic = characteristics
+            .iter()
+            .find(|c| c.uuid.to_string() == characteristic_uuid)
+            .cloned();
+
+        match characteristic {
+            Some(char) => {
+                debug!("✍️ Writing to characteristic: {:?}", char.uuid);
+                info!(
+                    "✍️ Found characteristic: {:?}, Properties: {:?}, Data length: {}",
+                    char.uuid,
+                    char.properties,
+                    data.len()
+                );
+
+                if !char.properties.contains(CharPropFlags::WRITE)
+                    && !char.properties.contains(CharPropFlags::WRITE_WITHOUT_RESPONSE)
+                {
+                    warn!(
+                        "⚠️ Characteristic {:?} does NOT support write operations!",
+                        char.uuid
+                    );
+                    return;
+                }
+
+                let write_type = if char.properties.contains(CharPropFlags::WRITE) {
+                    btleplug::api::WriteType::WithResponse
+                } else {
+                    btleplug::api::WriteType::WithoutResponse
+                };
+
+                match timeout(
+                    Duration::from_millis(timeout_ms),
+                    peripheral.write(&char, &data, write_type),
+                )
+                .await
+                {
+                    Ok(Ok(_)) => info!(
+                        "✅ Successfully wrote {} bytes to characteristic: {:?}",
+                        data.len(),
+                        char.uuid
+                    ),
+                    Ok(Err(e)) => {
+                        warn!("❌ Failed to write to {:?}: {:?}", char.uuid, e);
+                    }
+                    Err(_) => {
+                        warn!("❌ Write timeout for {:?}", char.uuid);
+                    }
+                }
+            }
+            None => warn!(
+                "❌ Characteristic with UUID {} not found! Available UUIDs: {:?}",
+                characteristic_uuid,
+                characteristics
+                    .iter()
+                    .map(|c| c.uuid.to_string())
+                    .collect::<Vec<_>>()
+            ),
+        }
+    });
+
+    Ok(resource)
+}
+
+#[rustler::nif]
+pub fn read_characteristic(
+    env: Env,
+    resource: ResourceArc<PeripheralRef>,
+    characteristic_uuid: String,
+    timeout_ms: u64,
+) -> Result<ResourceArc<PeripheralRef>, RustlerError> {
+    let peripheral_arc = resource.0.clone();
+    let env_pid = env.pid();
+
+    RUNTIME.spawn(async move {
+        let (peripheral, state, pid) = {
+            let state_guard = peripheral_arc.lock().unwrap();
+            (
+                state_guard.peripheral.clone(),
+                state_guard.state,
+                state_guard.pid,
+            )
+        };
+
+        info!(
+            "📖 Reading from Peripheral: {:?}, characteristic: {}, caller pid: {:?}, state pid: {:?}",
+            peripheral.id(),
+            characteristic_uuid,
+            env_pid.as_c_arg(),
+            pid.as_c_arg()
+        );
+
+        if state != PeripheralStateEnum::ServicesDiscovered {
+            warn!("⚠️ Services not yet discovered. Manually triggering discovery...");
+            if let Err(e) = timeout(
+                Duration::from_millis(timeout_ms),
+                peripheral.discover_services(),
+            )
+            .await
+            {
+                warn!("❌ Service discovery failed: {:?}", e);
+                return;
+            }
+
+            RUNTIME.spawn({
+                let peripheral_arc_clone = peripheral_arc.clone();
+                async move {
+                    if !discover_services_internal(&peripheral_arc_clone, timeout_ms).await {
+                        warn!("⚠️ No services discovered, but proceeding with read.");
+                    }
+                }
+            });
+        }
+
+        info!("🔍 Waiting 2s before checking characteristics...");
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+
+        let characteristics = peripheral.characteristics();
+        let characteristic = characteristics
+            .iter()
+            .find(|c| c.uuid.to_string() == characteristic_uuid)
+            .cloned();
+
+        match characteristic {
+            Some(char) => {
+                debug!("📖 Reading from characteristic: {:?}", char.uuid);
+                info!(
+                    "📖 Found characteristic: {:?}, Properties: {:?}",
+                    char.uuid, char.properties
+                );
+
+                if !char.properties.contains(CharPropFlags::READ) {
+                    warn!(
+                        "⚠️ Characteristic {:?} does NOT support read operations!",
+                        char.uuid
+                    );
+                    return;
+                }
+
+                match timeout(Duration::from_millis(timeout_ms), peripheral.read(&char)).await {
+                    Ok(Ok(data)) => {
+                        info!(
+                            "✅ Successfully read {} bytes from characteristic: {:?}",
+                            data.len(),
+                            char.uuid
+                        );
+
+                        // Send the read data back to Elixir via a message
+                        let mut owned_env = OwnedEnv::new();
+                        owned_env.send_and_clear(&pid, |env| {
+                            let data_term = data.encode(env);
+                            let uuid_term = char.uuid.to_string().encode(env);
+                            (
+                                atoms::btleplug_characteristic_read().encode(env),
+                                uuid_term,
+                                data_term,
+                            )
+                                .encode(env)
+                        });
+                    }
+                    Ok(Err(e)) => {
+                        warn!("❌ Failed to read from {:?}: {:?}", char.uuid, e);
+                    }
+                    Err(_) => {
+                        warn!("❌ Read timeout for {:?}", char.uuid);
+                    }
+                }
+            }
+            None => warn!(
+                "❌ Characteristic with UUID {} not found! Available UUIDs: {:?}",
+                characteristic_uuid,
+                characteristics
+                    .iter()
+                    .map(|c| c.uuid.to_string())
+                    .collect::<Vec<_>>()
+            ),
+        }
+    });
+
+    Ok(resource)
+}

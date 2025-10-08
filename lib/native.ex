@@ -81,6 +81,28 @@ defmodule RustlerBtleplug.Native do
   @spec unsubscribe(peripheral(), uuid(), number()) :: {:ok, peripheral()} | {:error, term()}
   def unsubscribe(_peripheral, _characteristic, _timeout \\ @default_timeout), do: error()
 
+  ## ✅ Read & Write Characteristics
+  @doc """
+  Write data to a characteristic.
+
+  Returns the peripheral reference. The operation is asynchronous.
+  """
+  @spec write_characteristic(peripheral(), uuid(), binary(), number()) ::
+          {:ok, peripheral()} | {:error, term()}
+  def write_characteristic(_peripheral, _characteristic, _data, _timeout \\ @default_timeout),
+    do: error()
+
+  @doc """
+  Read data from a characteristic.
+
+  Returns the peripheral reference. The read data will be sent as a message:
+  `{:btleplug_characteristic_read, uuid, data}`
+  """
+  @spec read_characteristic(peripheral(), uuid(), number()) ::
+          {:ok, peripheral()} | {:error, term()}
+  def read_characteristic(_peripheral, _characteristic, _timeout \\ @default_timeout),
+    do: error()
+
   ## ✅ Adapter State Queries (Graph & Mindmap)
   @doc """
   Retrieve the adapter state as a **GraphViz** or **Mermaid mindmap**.

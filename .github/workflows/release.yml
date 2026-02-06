@@ -11,8 +11,8 @@ on:
       #- ".github/workflows/release.yml"
       - ".github/workflows/**"
     tags:
-      # Tags will always run.
-      - "*"
+      # Version tags will always run.
+      - "v*"
   pull_request:
     paths:
       # In PRs we only run if this file changes.
@@ -163,7 +163,6 @@ jobs:
 
       - name: Build the project
         # if: ${{ !contains(matrix.job.target, 'apple-ios') }}
-        continue-on-error: true
         id: build-crate
         uses: philss/rustler-precompiled-action@v1.1.4
         with:

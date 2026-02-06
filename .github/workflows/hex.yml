@@ -2,9 +2,10 @@ name: Hex.pm Release
 
 on:
   workflow_dispatch:
-  workflow_run:
-    workflows: [Precomp NIFs]
-    types: [completed]
+  # Manual trigger only - automatic deployment disabled
+  # workflow_run:
+  #   workflows: [Precomp NIFs]
+  #   types: [completed]
 
 # jobs:
 #   on-success:

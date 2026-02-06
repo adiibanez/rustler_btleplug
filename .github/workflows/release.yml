@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ matrix.job.os }}
 
     permissions:
-      contents: write
+      contents: read
       id-token: write
       attestations: write
 
@@ -183,23 +183,6 @@ jobs:
         env:
           CROSS_TARGET_FLAGS: ${{ env.CROSS_TARGET_FLAGS }} # Pass the environment variable
 
-      # - name: Build ios Artifacts
-      #   if: ${{ contains(matrix.job.target, 'apple-ios') }}
-      #   continue-on-error: true
-      #   shell: bash
-      #   id: build-crate-ios
-      #   run: |
-      #     cd native/btleplug_client
-      #     rustup run nightly cargo build --target ${{ matrix.job.target }} --release
-
-      #     # Create a framework (or static library) for iOS
-      #     # Adapt these commands to your project's needs!
-      #     mkdir -p artifacts
-
-      #     cp target/${{ matrix.job.target }}/release/libbtleplug_client.dylib artifacts/libbtleplug_client.dylib
-      #     echo "::set-output name=artifact_path::artifacts/libbtleplug_client.dylib"
-      #     echo "::set-output name=file-name::libbtleplug_client.dylib"
-
       - name: Artifact attestation
         uses: actions/attest-build-provenance@v2
         with:
@@ -208,16 +191,33 @@ jobs:
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.job.target }}-${{ steps.build-crate.outputs.file-name }}
+          name: ${{ matrix.job.target }}${{ matrix.job.variant && format('-{0}', matrix.job.variant) || '' }}
           path: ${{ steps.build-crate.outputs.file-path }}
           retention-days: 5
 
-      - name: Publish archives and packages
+  publish_release:
+    name: Publish GitHub Release
+    needs: build_release
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: |
+          echo "Downloaded artifacts:"
+          find artifacts -type f | head -50
+
+      - name: Publish to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           make_latest: true
-          append_body: true
           generate_release_notes: true
-          files: |
-            ${{ steps.build-crate.outputs.file-path }}
-        if: startsWith(github.ref, 'refs/tags/')
+          files: artifacts/*

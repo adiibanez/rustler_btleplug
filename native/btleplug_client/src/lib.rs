@@ -42,6 +42,9 @@ mod central_manager_state_utils;
 mod central_manager_utils;
 mod logging;
 mod peripheral;
+mod peripheral_manager;
+mod peripheral_manager_state;
+mod peripheral_types;
 
 extern crate rustler;
 extern crate rustler_codegen;
@@ -50,6 +53,7 @@ use central_manager_state::CentralRef;
 use log::{debug, info};
 use once_cell::sync::Lazy;
 use peripheral::*;
+use peripheral_manager_state::PeripheralManagerRef;
 use rustler::{Env, Error as RustlerError, Term};
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
@@ -65,7 +69,7 @@ fn on_load(env: Env, _info: Term) -> bool {
     info!("Initializing Rust BLE NIF module ...");
     rustler::resource!(CentralRef, env);
     rustler::resource!(PeripheralRef, env);
-    // rustler::resource!(GattPeripheralRef, env);
+    rustler::resource!(PeripheralManagerRef, env);
     debug!("Rust NIF BLE module loaded successfully.");
     true
 }
@@ -114,4 +118,36 @@ pub extern "C" fn nif_init() -> *const rustler::nif::ErlNifEntry {
 // pub const NIF_MAJOR_VERSION: c_int = 2;
 // pub const NIF_MINOR_VERSION: c_int = 15;
 // find . -name nif_api.snippet.rs
-rustler::init!("Elixir.RustlerBtleplug.Native", load = on_load);
+rustler::init!(
+    "Elixir.RustlerBtleplug.Native",
+    [
+        // Test functions
+        test_string,
+        add,
+        get_map,
+        // Central mode functions
+        central_manager::create_central,
+        central_manager::start_scan,
+        central_manager::stop_scan,
+        central_manager_finder::find_peripheral_by_name,
+        central_manager_finder::find_peripheral,
+        peripheral::connect,
+        peripheral::disconnect,
+        peripheral::subscribe,
+        peripheral::unsubscribe,
+        peripheral::read_characteristic,
+        peripheral::write_characteristic,
+        central_manager_state_utils::get_adapter_state_map,
+        central_manager_state_utils::get_adapter_state_graph,
+        // Peripheral (server) mode functions
+        peripheral_manager::create_peripheral,
+        peripheral_manager::add_service,
+        peripheral_manager::start_advertising,
+        peripheral_manager::stop_advertising,
+        peripheral_manager::respond_to_read_request,
+        peripheral_manager::respond_to_write_request,
+        peripheral_manager::update_characteristic,
+        peripheral_manager::is_advertising,
+    ],
+    load = on_load
+);

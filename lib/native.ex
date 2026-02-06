@@ -129,6 +129,82 @@ defmodule RustlerBtleplug.Native do
   @spec get_map() :: {:ok, map()} | {:error, term()}
   def get_map(), do: error()
 
+  ## ============================================================
+  ## Peripheral (Server/Advertiser) Mode Functions
+  ## ============================================================
+
+  @type peripheral_manager() :: reference()
+  @type service_definition() :: %{
+          uuid: String.t(),
+          primary: boolean(),
+          characteristics: [characteristic_definition()]
+        }
+  @type characteristic_definition() :: %{
+          uuid: String.t(),
+          properties: characteristic_properties(),
+          value: binary() | nil
+        }
+  @type characteristic_properties() :: %{
+          read: boolean(),
+          write: boolean(),
+          write_without_response: boolean(),
+          notify: boolean(),
+          indicate: boolean()
+        }
+
+  @doc """
+  Create a new BLE peripheral manager for server/advertiser mode.
+  Events will be sent to the calling process.
+  """
+  @spec create_peripheral(pid()) :: {:ok, peripheral_manager()} | {:error, term()}
+  def create_peripheral(_pid \\ self()), do: error()
+
+  @doc """
+  Add a GATT service to the peripheral.
+  """
+  @spec add_service(peripheral_manager(), service_definition()) :: :ok | {:error, term()}
+  def add_service(_peripheral_manager, _service_definition), do: error()
+
+  @doc """
+  Start advertising the peripheral with the given device name and service UUIDs.
+  """
+  @spec start_advertising(peripheral_manager(), String.t(), [String.t()]) ::
+          :ok | {:error, term()}
+  def start_advertising(_peripheral_manager, _device_name, _service_uuids), do: error()
+
+  @doc """
+  Stop advertising.
+  """
+  @spec stop_advertising(peripheral_manager()) :: :ok | {:error, term()}
+  def stop_advertising(_peripheral_manager), do: error()
+
+  @doc """
+  Respond to a read request from a connected central.
+  """
+  @spec respond_to_read_request(peripheral_manager(), non_neg_integer(), binary(), boolean()) ::
+          :ok | {:error, term()}
+  def respond_to_read_request(_peripheral_manager, _request_id, _value, _success), do: error()
+
+  @doc """
+  Respond to a write request from a connected central.
+  """
+  @spec respond_to_write_request(peripheral_manager(), non_neg_integer(), boolean()) ::
+          :ok | {:error, term()}
+  def respond_to_write_request(_peripheral_manager, _request_id, _success), do: error()
+
+  @doc """
+  Update a characteristic value and notify subscribed centrals.
+  """
+  @spec update_characteristic(peripheral_manager(), String.t(), binary()) ::
+          :ok | {:error, term()}
+  def update_characteristic(_peripheral_manager, _characteristic_uuid, _value), do: error()
+
+  @doc """
+  Check if the peripheral is currently advertising.
+  """
+  @spec is_advertising(peripheral_manager()) :: {:ok, boolean()} | {:error, term()}
+  def is_advertising(_peripheral_manager), do: error()
+
   ## Handle NIF errors when Rust module isn't loaded
   defp error, do: :erlang.nif_error(:nif_not_loaded)
 end

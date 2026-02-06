@@ -1,6 +1,6 @@
 [package]
 name = "btleplug_client"
-version = "0.0.15-alpha"
+version = "0.0.16-alpha"
 keywords = ["bluetooth", "BLE", "bluez", "uwp", "corebluetooth"]
 categories = ["hardware-support"]
 edition = "2021"
@@ -29,6 +29,8 @@ chrono = "0.4.40"
 serde_json = "1.0.93"
 
 btleplug = { version = "0.11.7", features = ["serde"] }
+ble-peripheral-rust = "0.2.0"
+uuid = "1.16"
 #rustler = { version = "0.36.1", default-features = false, features = ["derive", "nif_version_2_15"] }
 # branch = "static"
 rustler = { git = "https://github.com/filmor/rustler.git", rev = "17740a6dc39c79e47e94dd5e59914d30777a0131", default-features = false, features = ["staticlib", "derive", "nif_version_2_15"]}

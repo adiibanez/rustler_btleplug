@@ -30,4 +30,15 @@ rustler::atoms! {
     btleplug_services_advertisement,
 
     btleplug_characteristic_value_changed,
+
+    // Peripheral (server) mode atoms
+    btleplug_peripheral_created,
+    btleplug_peripheral_advertising_started,
+    btleplug_peripheral_advertising_stopped,
+    btleplug_peripheral_service_added,
+    btleplug_peripheral_read_request,
+    btleplug_peripheral_write_request,
+    btleplug_peripheral_subscription_update,
+    btleplug_peripheral_central_connected,
+    btleplug_peripheral_central_disconnected,
 }

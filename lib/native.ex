@@ -1,37 +1,30 @@
 defmodule RustlerBtleplug.Native do
   @moduledoc false
 
-  use Rustler,
-    otp_app: :rustler_btleplug,
-    crate: :btleplug_client,
-    skip_compilation?: true
-
-  # @on_load :load_nifs
-  # def load_nifs do
-  #   :ok
-  # end
+  # use Rustler,
+  #   otp_app: :rustler_btleplug,
+  #   crate: :btleplug_client,
+  #   skip_compilation?: true
 
   version = Mix.Project.config()[:version]
 
-  # use RustlerPrecompiled,
-  #   otp_app: :rustler_btleplug,
-  #   crate: :btleplug_client,
-  #   base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v#{version}",
-  #   force_build: System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"],
-  #   version: version,
-  #   max_retries: 0,
-  #   targets: [
-  #     "aarch64-apple-darwin",
-  #     "x86_64-apple-darwin",
-  #     "aarch64-apple-ios-sim",
-  #     "aarch64-apple-ios",
-  #     "x86_64-apple-ios",
-  #     "aarch64-unknown-linux-gnu",
-  #     "aarch64-unknown-linux-musl",
-  #     "x86_64-pc-windows-msvc",
-  #     "x86_64-unknown-linux-gnu",
-  #     "x86_64-unknown-linux-musl"
-  #   ]
+  use RustlerPrecompiled,
+    otp_app: :rustler_btleplug,
+    crate: :btleplug_client,
+    base_url: "https://github.com/adiibanez/rustler_btleplug/releases/download/v#{version}",
+    force_build: System.get_env("RUSTLER_BTLEPLUG_BUILD") in ["1", "true"],
+    version: version,
+    max_retries: 0,
+    targets: [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin",
+      "aarch64-unknown-linux-gnu",
+      "aarch64-unknown-linux-musl",
+      "arm-unknown-linux-gnueabihf",
+      "x86_64-pc-windows-msvc",
+      "x86_64-unknown-linux-gnu",
+      "x86_64-unknown-linux-musl"
+    ]
 
   ## Type Definitions
   @type central() :: reference()

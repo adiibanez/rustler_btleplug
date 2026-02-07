@@ -101,8 +101,8 @@ defmodule RustlerBtleplug.MixProject do
 
   defp deps do
     [
-      # {:rustler, ">= 0.31.0", optional: true},
-      {:rustler, github: "filmor/rustler", ref: "static", override: true, sparse: "rustler_mix"},
+      {:rustler, ">= 0.31.0", optional: true},
+      # {:rustler, github: "filmor/rustler", ref: "static", override: true, sparse: "rustler_mix"},
       # {:rustler,
       #  path:
       #    "/Users/adrianibanez/Documents/projects/2024_sensor-platform/checkouts/rustler/rustler_mix",
